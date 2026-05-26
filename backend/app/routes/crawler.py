@@ -38,10 +38,10 @@ def trigger_crawl():
     def run():
         with app.app_context():
             run_crawl(
-                max_urls=100,
+                max_urls=550,
                 include_dldownload=True,
                 include_thenkiri=True,
-                thenkiri_max=200,
+                thenkiri_max=550,
                 fetch_thenkiri_pages=False
             )
 
