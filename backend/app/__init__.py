@@ -1,5 +1,5 @@
 import os
-from flask import Flask        # ← remove the duplicate 'app, app' imports
+from flask import Flask, app        # ← remove the duplicate 'app, app' imports
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -24,6 +24,9 @@ def create_app():
     from app.models.episode import Episode
     from app.models.admin_user import AdminUser
 
+    from app.routes.crawler import crawler_bp
+    app.register_blueprint(crawler_bp)
+    
     from app.routes.movies import movies_bp
     from app.routes.series import series_bp
     from app.routes.search import search_bp
