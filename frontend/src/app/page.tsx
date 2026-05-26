@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+import { Suspense } from 'react'
 import { getMovies, getTrending, getAllSeries } from '@/lib/api'
 import MovieGrid from '@/components/movies/MovieGrid'
 import Sidebar from '@/components/layout/Sidebar'
@@ -24,12 +26,13 @@ export default async function Home() {
       }}>
         <main style={{ flex: '1 1 0', minWidth: 0 }}>
           <SectionHeading>⚡ Latest Movies</SectionHeading>
-          <FilterBar />
+          <Suspense fallback={<div>Loading filters...</div>}>
+            <FilterBar />
+          </Suspense>
           <MovieGrid movies={data.movies} />
           <Pagination current={1} total={data.pages} basePath="page" />
         </main>
 
-        {/* Sidebar hidden on mobile via CSS */}
         <div className="sidebar-wrapper">
           <Sidebar trending={trending} series={series} />
         </div>
