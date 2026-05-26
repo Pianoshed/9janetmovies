@@ -15,7 +15,7 @@ def create_app():
     migrate.init_app(app, db)
     CORS(app, origins=[
         "http://localhost:3000",
-        os.getenv("FRONTEND_URL", ""),
+        os.getenv("https://ninejamoviesnet1.onrender.com", ""),
     ])
 
     from app.models.movie import Movie
