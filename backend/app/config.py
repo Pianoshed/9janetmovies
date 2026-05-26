@@ -9,7 +9,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     _db_url = os.getenv('DATABASE_URL', 'postgresql://localhost/9janetmovies')
-    # Render/Railway give postgres:// but SQLAlchemy needs postgresql://
+
     if _db_url.startswith('postgres://'):
         _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
     SQLALCHEMY_DATABASE_URI = _db_url
