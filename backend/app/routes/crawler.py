@@ -6,6 +6,23 @@ crawler_bp = Blueprint('crawler', __name__)
 
 CRAWLER_SECRET = os.getenv('CRAWLER_SECRET', 'secret123')
 
+@crawler_bp.route('/api/crawl/reset', methods=['POST'])
+def reset_crawl_state():
+    token = request.headers.get('X-Crawler-Token')
+    if token != CRAWLER_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    import os
+    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE
+
+    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE]:
+        try:
+            open(state_file, 'w').close()  # wipe the file
+        except Exception as e:
+            pass
+
+    return jsonify({'status': 'State reset — next crawl will process all URLs'}), 200
+
 @crawler_bp.route('/api/crawl', methods=['POST'])
 def trigger_crawl():
     # Protect the route with a secret key
