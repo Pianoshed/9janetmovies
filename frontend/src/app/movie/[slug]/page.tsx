@@ -7,6 +7,11 @@ interface Props {
     params: Promise<{ slug: string }>
 }
 
+function extractYouTubeId(url: string): string | null {
+    const m = url.match(/[?&]v=([^&#]+)/)
+    return m ? m[1] : null
+}
+
 export default async function MoviePage({ params }: Props) {
     const { slug } = await params
 
@@ -17,6 +22,10 @@ export default async function MoviePage({ params }: Props) {
     ])
 
     if (!movie || !movie.title) return notFound()
+
+    const youtubeLinks = movie.links?.filter(l => l.host === 'YouTube') ?? []
+    const directLinks = movie.links?.filter(l => l.host !== 'YouTube') ?? []
+    const videoId = youtubeLinks.length > 0 ? extractYouTubeId(youtubeLinks[0].url) : null
 
     return (
         <>
@@ -83,7 +92,6 @@ export default async function MoviePage({ params }: Props) {
                                     {movie.title}
                                 </h1>
 
-                                {/* BADGES */}
                                 <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {movie.badge && (
                                         <span style={{
@@ -134,51 +142,189 @@ export default async function MoviePage({ params }: Props) {
                         </div>
                     </div>
 
-                    {/* DOWNLOAD LINKS */}
-                    <SectionHeading>⬇️ Download Links</SectionHeading>
-                    <div style={{
-                        background: 'var(--white)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '4px',
-                        padding: '16px',
-                        marginBottom: '16px',
-                    }}>
-                        {movie.links && movie.links.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {movie.links.map((link, i) => (
+                    {/* DIRECT DOWNLOAD LINKS */}
+                    {directLinks.length > 0 && (
+                        <>
+                            <SectionHeading>⬇️ Download Links</SectionHeading>
+                            <div style={{
+                                background: 'var(--white)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '4px',
+                                padding: '16px',
+                                marginBottom: '16px',
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {directLinks.map((link, i) => (
+                                        <a
+                                            key={i}
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                padding: '14px 20px',
+                                                background: 'var(--blue-dark)',
+                                                color: 'var(--white)',
+                                                borderRadius: '4px',
+                                                fontSize: '15px',
+                                                fontWeight: 600,
+                                                textDecoration: 'none',
+                                                border: '2px solid var(--blue)',
+                                                textAlign: 'center',
+                                                width: '100%',
+                                                boxSizing: 'border-box',
+                                            }}
+                                        >
+                                            ⬇️ {link.label} — {link.host}
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* YOUTUBE DOWNLOAD SECTION */}
+                    {videoId && (
+                        <>
+                            <SectionHeading>▶️ Watch & Download (YouTube)</SectionHeading>
+                            <div style={{
+                                background: 'var(--white)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '4px',
+                                padding: '16px',
+                                marginBottom: '16px',
+                            }}>
+                                <img
+                                    src={`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`}
+                                    alt={movie.title}
+                                    style={{
+                                        width: '100%',
+                                        borderRadius: '4px',
+                                        marginBottom: '16px',
+                                        objectFit: 'cover',
+                                        maxHeight: '300px',
+                                    }}
+                                />
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                                    {/* Server 1 - ytjar */}
+                                    <div style={{ width: '100%' }}>
+                                        <p style={{
+                                            fontSize: '12px',
+                                            color: 'var(--muted)',
+                                            marginBottom: '6px',
+                                            fontWeight: 600,
+                                        }}>
+                                            Server 1 (Recommended)
+                                        </p>
+                                        <iframe
+                                            src={`//mp4api.ytjar.info/?id=${videoId}&c=FFFFFF&b=1a237e&t&h=40px&cb=FFFFFF&cc=1a237e&br=1a237e`}
+                                            style={{
+                                                width: '100%',
+                                                height: '40px',
+                                                border: '1px solid var(--blue-dark)',
+                                                borderRadius: '4px',
+                                                display: 'block',
+                                            }}
+                                            scrolling="no"
+                                        />
+                                    </div>
+
+                                    {/* Server 2 - ssvid */}
                                     <a
-                                        key={i}
-                                        href={link.url}
+                                        href={`https://ssvid.net/#https://www.youtube.com/watch?v=${videoId}`}
                                         target="_blank"
-                                        rel="noopener noreferrer"
+                                        rel="nofollow noreferrer noopener"
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             gap: '8px',
-                                            padding: '14px 20px',
-                                            background: 'var(--blue-dark)',
-                                            color: 'var(--white)',
+                                            padding: '12px 20px',
+                                            background: '#e53935',
+                                            color: 'white',
                                             borderRadius: '4px',
-                                            fontSize: '15px',
+                                            fontSize: '14px',
                                             fontWeight: 600,
                                             textDecoration: 'none',
-                                            border: '2px solid var(--blue)',
                                             textAlign: 'center',
-                                            width: '100%',
-                                            boxSizing: 'border-box',
                                         }}
                                     >
-                                        ⬇️ {link.label} — {link.host}
+                                        ⬇️ Server 2 — SSVid
                                     </a>
-                                ))}
+
+                                    {/* Server 3 - savefrom */}
+                                    <a
+                                        href={`https://savefrom.net/#url=https://www.youtube.com/watch?v=${videoId}`}
+                                        target="_blank"
+                                        rel="nofollow noreferrer noopener"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            padding: '12px 20px',
+                                            background: '#2e7d32',
+                                            color: 'white',
+                                            borderRadius: '4px',
+                                            fontSize: '14px',
+                                            fontWeight: 600,
+                                            textDecoration: 'none',
+                                            textAlign: 'center',
+                                        }}
+                                    >
+                                        ⬇️ Server 3 — SaveFrom
+                                    </a>
+
+                                    {/* Watch on YouTube */}
+                                    <a
+                                        href={`https://www.youtube.com/watch?v=${videoId}`}
+                                        target="_blank"
+                                        rel="nofollow noreferrer noopener"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            padding: '12px 20px',
+                                            background: '#fff',
+                                            color: '#e53935',
+                                            borderRadius: '4px',
+                                            fontSize: '14px',
+                                            fontWeight: 600,
+                                            textDecoration: 'none',
+                                            border: '2px solid #e53935',
+                                            textAlign: 'center',
+                                        }}
+                                    >
+                                        ▶️ Watch on YouTube
+                                    </a>
+                                </div>
                             </div>
-                        ) : (
-                            <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-                                No download links available yet.
-                            </p>
-                        )}
-                    </div>
+                        </>
+                    )}
+
+                    {/* NO LINKS */}
+                    {directLinks.length === 0 && !videoId && (
+                        <>
+                            <SectionHeading>⬇️ Download Links</SectionHeading>
+                            <div style={{
+                                background: 'var(--white)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '4px',
+                                padding: '16px',
+                                marginBottom: '16px',
+                            }}>
+                                <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
+                                    No download links available yet.
+                                </p>
+                            </div>
+                        </>
+                    )}
 
                     {/* DISCLAIMER */}
                     <div style={{
@@ -214,17 +360,11 @@ export default async function MoviePage({ params }: Props) {
                     width: 260px;
                     flex-shrink: 0;
                 }
-
                 @media (max-width: 700px) {
-                    .sidebar-wrapper {
-                        display: none;
-                    }
+                    .sidebar-wrapper { display: none; }
                 }
-
                 @media (max-width: 520px) {
-                    .movie-info-inner {
-                        flex-direction: column;
-                    }
+                    .movie-info-inner { flex-direction: column; }
                     .movie-poster {
                         width: 100%;
                         max-width: 200px;
