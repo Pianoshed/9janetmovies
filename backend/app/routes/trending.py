@@ -5,7 +5,8 @@ trending_bp = Blueprint('trending', __name__, url_prefix='/api')
 
 @trending_bp.route('/trending')
 def get_trending():
-    movies = Movie.query.filter_by(
-        is_trending=True
-    ).order_by(Movie.created_at.desc()).limit(5).all()
+    movies = Movie.query.filter(
+        Movie.poster_url.isnot(None),
+        Movie.poster_url != '',
+    ).order_by(Movie.created_at.desc()).limit(10).all()
     return jsonify([m.to_dict() for m in movies])

@@ -9,12 +9,15 @@ def get_movies():
     genre = request.args.get('genre', None)
 
     query = Movie.query
+
     if genre:
         query = query.filter(Movie.genre.ilike(f'%{genre}%'))
 
-    movies = query.order_by(Movie.created_at.desc()).paginate(
-        page=page, per_page=20, error_out=False
-    )
+    # Show newest year first, then most recently added within same year
+    movies = query.order_by(
+        Movie.year.desc().nullslast(),
+        Movie.created_at.desc()
+    ).paginate(page=page, per_page=20, error_out=False)
 
     return jsonify({
         'movies':  [m.to_dict() for m in movies.items],

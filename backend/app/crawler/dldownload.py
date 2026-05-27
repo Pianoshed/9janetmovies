@@ -58,6 +58,37 @@ HEADERS = {
     )
 }
 
+# ── ADULT CONTENT FILTER ──────────────────────────────────────
+ADULT_KEYWORDS = [
+    'xxx', 'porn', 'pornography', 'adult', 'erotic', 'erotica',
+    'sex tape', 'nude', 'naked', 'hardcore', 'softcore', 'fetish',
+    'onlyfans', 'brazzers', 'bangbros', 'playboy', 'penthouse',
+    'creeping on mom', 'next room affair', 'mamasan',
+    'milf', 'stepmom', 'stepsis', 'step-mom', 'step-sis',
+    '-18', '+18', '18+', 'x-rated', 'naughty',
+]
+
+ADULT_URL_KEYWORDS = [
+    '/xxx', 'xxx-', '-xxx', 'adult-', '-adult',
+    '/porn', '/erotic', '/18-plus', '/18plus',
+]
+
+def is_adult_content(title, url=''):
+    title_lower = title.lower()
+    url_lower   = url.lower()
+
+    for kw in ADULT_KEYWORDS:
+        if kw in title_lower:
+            log.info(f'  Blocked adult content: {title!r} (keyword: {kw!r})')
+            return True
+
+    for kw in ADULT_URL_KEYWORDS:
+        if kw in url_lower:
+            log.info(f'  Blocked adult URL: {url!r} (keyword: {kw!r})')
+            return True
+
+    return False
+
 # ── RETRY-ENABLED HTTP SESSION ────────────────────────────────
 def _make_session():
     session = requests.Session()
@@ -156,7 +187,10 @@ def detect_year_from_text(*sources):
             continue
         match = re.search(r'(20\d{2}|19\d{2})', text)
         if match:
-            return int(match.group(1))
+            yr = int(match.group(1))
+            # Reject years too far in the future
+            if yr <= CURRENT_YEAR + 1:
+                return yr
     return None
 
 def slugify(text):
@@ -426,6 +460,10 @@ def scrape_dldownload_page(url):
 
         title = re.sub(r'\s+', ' ', title).strip()
 
+        # Block adult content early
+        if is_adult_content(title, url):
+            return None
+
         download_links = []
         seen = set()
 
@@ -483,15 +521,8 @@ def get_dldownload_urls(max_urls=500):
 # ══════════════════════════════════════════════════════════════
 
 def _extract_poster_from_url_tag(url_tag, page_url):
-    """
-    Try three strategies to pull a poster image from a sitemap <url> block:
-    1. Standard BeautifulSoup image:loc tag lookup
-    2. Fallback: any <loc> after the first (sometimes images land there)
-    3. Last resort: raw regex on the tag's string content
-    """
     IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
 
-    # Strategy 1 — standard namespace tag
     for img_tag in url_tag.find_all('image:loc'):
         img_url = img_tag.text.strip()
         if (
@@ -502,7 +533,6 @@ def _extract_poster_from_url_tag(url_tag, page_url):
         ):
             return img_url
 
-    # Strategy 2 — second <loc> in the block
     locs = url_tag.find_all('loc')
     for loc in locs[1:]:
         img_url = loc.text.strip()
@@ -514,7 +544,6 @@ def _extract_poster_from_url_tag(url_tag, page_url):
         ):
             return img_url
 
-    # Strategy 3 — raw regex on the serialised tag
     raw = str(url_tag)
     m = re.search(
         r'<image:loc>(https?://[^<]+\.(?:jpg|jpeg|png|webp))</image:loc>',
@@ -562,10 +591,18 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
                 if any(x in page_url for x in ['/page/', '/category/', '/tag/', '/author/']):
                     continue
 
+                # Block adult URLs early
+                if is_adult_content('', page_url):
+                    continue
+
                 poster = _extract_poster_from_url_tag(url_tag, page_url)
 
                 slug_part = page_url.rstrip('/').split('/')[-1]
                 raw_title = slug_part.replace('-', ' ').title()
+
+                # Block adult titles derived from URL slug
+                if is_adult_content(raw_title, page_url):
+                    continue
 
                 entries.append({
                     'title':  raw_title,
@@ -584,10 +621,6 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
 
 def scrape_thenkiri_page(url):
-    """
-    Fetch a thenkiri page for real title, description, and og:image poster.
-    Returns dict with title, description, poster — all may be None on failure.
-    """
     res = _safe_get(url)
     if not res:
         return None
@@ -595,7 +628,6 @@ def scrape_thenkiri_page(url):
     try:
         soup = BeautifulSoup(res.text, 'lxml')
 
-        # Title
         title = None
         for sel in ['h1.entry-title', 'h1', '.entry-title']:
             tag = soup.select_one(sel)
@@ -610,13 +642,15 @@ def scrape_thenkiri_page(url):
                 title, flags=re.IGNORECASE
             )
 
-        # Description
+        # Block adult content from page title
+        if title and is_adult_content(title, url):
+            return None
+
         description = ''
         meta_desc = soup.find('meta', {'name': 'description'})
         if meta_desc:
             description = meta_desc.get('content', '')[:500]
 
-        # Poster — og:image is the most reliable source on the actual page
         poster = None
         for attr in [{'property': 'og:image'}, {'name': 'twitter:image'}]:
             tag = soup.find('meta', attr)
@@ -646,6 +680,10 @@ def save_series(data, tmdb, source='dldownload'):
         log.warning(f'  Skipped series — unusable slug for title: {raw_title!r}')
         return
 
+    # Block adult content
+    if is_adult_content(series_title, data.get('url', '')):
+        return
+
     season, ep, is_full_season = extract_season_episode(raw_title)
 
     poster = (tmdb.get('poster') if tmdb else None) or data.get('poster')
@@ -670,22 +708,15 @@ def save_series(data, tmdb, source='dldownload'):
             db.session.flush()
             log.info(f'  New series: {series_title}')
         else:
+            updated = False
             if not series.poster_url and poster:
                 series.poster_url = poster
+                updated = True
             if not series.description and description:
                 series.description = description
-
-                    # In save_series, fix the missing commit on update:
-            else:
-                updated = False
-                if not series.poster_url and poster:
-                    series.poster_url = poster
-                    updated = True
-                if not series.description and description:
-                    series.description = description
-                    updated = True
-                if updated:
-                    db.session.commit()  # ← this was missing
+                updated = True
+            if updated:
+                db.session.commit()
     except Exception as e:
         db.session.rollback()
         log.error(f'  DB error creating/flushing series "{series_title}": {e}')
@@ -756,6 +787,10 @@ def save_movie(data, tmdb, source='dldownload'):
 
     if not slug or slug == 'untitled':
         log.warning(f'  Skipped movie — unusable slug for title: {title!r}')
+        return
+
+    # Block adult content
+    if is_adult_content(title, data.get('url', '')):
         return
 
     poster      = (tmdb.get('poster') if tmdb else None) or data.get('poster')
@@ -837,6 +872,7 @@ def run_dldownload_crawl(max_urls=100):
     total_movies  = 0
     total_series  = 0
     total_skipped = 0
+    total_blocked = 0
 
     processed = _load_processed_urls(DLDOWNLOAD_STATE)
     log.info(f'Already processed: {len(processed)} URLs')
@@ -852,9 +888,15 @@ def run_dldownload_crawl(max_urls=100):
     for i, url in enumerate(post_urls, 1):
         log.info(f'[{i}/{len(post_urls)}] {url}')
 
+        # Block adult URLs before even fetching the page
+        if is_adult_content('', url):
+            total_blocked += 1
+            _mark_url_processed(DLDOWNLOAD_STATE, url)
+            continue
+
         data = scrape_dldownload_page(url)
         if not data:
-            log.info('  Skipped — could not scrape')
+            log.info('  Skipped — could not scrape or blocked')
             total_skipped += 1
             _mark_url_processed(DLDOWNLOAD_STATE, url)
             continue
@@ -890,7 +932,8 @@ def run_dldownload_crawl(max_urls=100):
 
     log.info(
         f'DLDownload done: {total_movies} movies | '
-        f'{total_series} series | {total_skipped} skipped'
+        f'{total_series} series | {total_skipped} skipped | '
+        f'{total_blocked} adult blocked'
     )
 
 
@@ -899,6 +942,7 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
     total_movies  = 0
     total_series  = 0
     total_skipped = 0
+    total_blocked = 0
 
     processed = _load_processed_urls(THENKIRI_STATE)
     log.info(f'Already processed: {len(processed)} URLs')
@@ -919,12 +963,22 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
 
         if fetch_pages:
             page_data = scrape_thenkiri_page(entry['url'])
-            if page_data:
-                if page_data.get('title'):
-                    title = clean_movie_title(page_data['title'])
-                if page_data.get('poster'):
-                    poster = page_data['poster']   # og:image beats sitemap image
+            if page_data is None:
+                # None means blocked or failed
+                total_blocked += 1
+                _mark_url_processed(THENKIRI_STATE, entry['url'])
+                continue
+            if page_data.get('title'):
+                title = clean_movie_title(page_data['title'])
+            if page_data.get('poster'):
+                poster = page_data['poster']
             time.sleep(SLEEP_THENKIRI_PAGE)
+
+        # Final adult check on resolved title
+        if is_adult_content(title, entry['url']):
+            total_blocked += 1
+            _mark_url_processed(THENKIRI_STATE, entry['url'])
+            continue
 
         title_is_series = is_series(title) or is_series_from_url(entry['url'])
 
@@ -942,7 +996,6 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
         year = detect_year_from_text(title, entry['url'])
         tmdb = tmdb_search(search_title, year=year, prefer_tv=title_is_series)
 
-        # Poster priority: TMDB > og:image/sitemap > None
         if tmdb and not tmdb.get('poster') and poster:
             tmdb['poster'] = poster
         elif not tmdb:
@@ -980,7 +1033,8 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
 
     log.info(
         f'TheNkiri done: {total_movies} movies | '
-        f'{total_series} series | {total_skipped} skipped'
+        f'{total_series} series | {total_skipped} skipped | '
+        f'{total_blocked} adult blocked'
     )
 
 
@@ -992,7 +1046,7 @@ def run_crawl(
     fetch_thenkiri_pages=False
 ):
     from flask import current_app
-    app = current_app._get_current_object()  # grab the real app object
+    app = current_app._get_current_object()
 
     log.info('═══ Starting 9janetmovies crawl ═══')
 
