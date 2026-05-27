@@ -1,5 +1,5 @@
 'use client'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 
 const FILTERS = [
     'All', 'Action', 'Thriller', 'Horror', 'Drama',
@@ -9,7 +9,16 @@ const FILTERS = [
 export default function FilterBar() {
     const router = useRouter()
     const params = useSearchParams()
-    const active = params.get('genre') || 'All'
+    const pathname = usePathname()
+
+    // Check both query param and URL path for active genre
+    const genreFromQuery = params.get('genre')
+    const genreFromPath = pathname.startsWith('/tag/')
+        ? pathname.split('/')[2]
+        : null
+
+    const activeRaw = genreFromQuery || genreFromPath || 'All'
+    const active = FILTERS.find(f => f.toLowerCase() === activeRaw.toLowerCase()) || 'All'
 
     function handleFilter(genre: string) {
         if (genre === 'All') {
