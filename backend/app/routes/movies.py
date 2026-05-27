@@ -1,7 +1,20 @@
 from flask import Blueprint, jsonify, request
 from app.models.movie import Movie
+from app.models.download_link import DownloadLink
+from sqlalchemy import exists, and_
 
 movies_bp = Blueprint('movies', __name__, url_prefix='/api')
+
+
+def has_non_youtube_link():
+    """Subquery: movie has at least one non-YouTube download link."""
+    return exists().where(
+        and_(
+            DownloadLink.movie_id == Movie.id,
+            DownloadLink.host != 'YouTube'
+        )
+    )
+
 
 @movies_bp.route('/movies')
 def get_movies():
@@ -12,6 +25,12 @@ def get_movies():
 
     if genre:
         query = query.filter(Movie.genre.ilike(f'%{genre}%'))
+
+    # YouTube-only movies only appear under the Nollywood filter.
+    # For all other feeds (no genre or any other genre), exclude them.
+    is_nollywood = genre and 'nollywood' in genre.lower()
+    if not is_nollywood:
+        query = query.filter(has_non_youtube_link())
 
     # Show newest year first, then most recently added within same year
     movies = query.order_by(
@@ -25,6 +44,7 @@ def get_movies():
         'pages':   movies.pages,
         'current': movies.page
     })
+
 
 @movies_bp.route('/movies/<slug>')
 def get_movie(slug):
