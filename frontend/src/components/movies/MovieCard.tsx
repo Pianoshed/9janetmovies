@@ -12,7 +12,10 @@ export default function MovieCard({ movie }: Props) {
             border: '1px solid var(--border)',
             borderRadius: '4px',
             overflow: 'hidden',
-        }}>
+            transition: 'box-shadow 0.15s ease',
+        }}
+            className="movie-card"
+        >
             <Link href={`/movie/${movie.slug}`} style={{ display: 'block' }}>
 
                 {/* POSTER */}
@@ -20,7 +23,8 @@ export default function MovieCard({ movie }: Props) {
                     <img
                         src={movie.poster_url}
                         alt={movie.title}
-                        style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover' }}
+                        loading="lazy"
+                        style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', display: 'block' }}
                     />
                 ) : (
                     <div style={{
@@ -30,51 +34,61 @@ export default function MovieCard({ movie }: Props) {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '40px',
+                        fontSize: '36px',
                         color: '#aac0ff',
-                        minHeight: '180px'
                     }}>
                         🎬
                     </div>
                 )}
 
                 {/* BODY */}
-                <div style={{ padding: '8px' }}>
+                <div style={{ padding: '7px 8px 9px' }}>
                     {movie.badge && (
                         <div style={{
                             display: 'inline-block',
                             background: 'var(--red)',
                             color: 'var(--white)',
-                            fontSize: '10px',
-                            padding: '2px 6px',
+                            fontSize: '9px',
+                            padding: '2px 5px',
                             borderRadius: '2px',
                             marginBottom: '4px',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
+                            letterSpacing: '0.5px',
                         }}>
                             {movie.badge}
                         </div>
                     )}
                     <div style={{
-                        fontSize: '13px',
+                        fontSize: '12px',
                         fontWeight: 600,
                         lineHeight: 1.4,
                         color: 'var(--black)',
-                        marginBottom: '4px',
+                        marginBottom: '3px',
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
                     }}>
-                        {movie.title} {movie.year ? `(${movie.year})` : ''}
+                        {movie.title}{movie.year ? ` (${movie.year})` : ''}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                        {movie.genre} &bull; {movie.year}
+                    <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                        {movie.genre}{movie.year ? ` · ${movie.year}` : ''}
                     </div>
                 </div>
 
             </Link>
+
+            <style>{`
+        .movie-card:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        @media (max-width: 480px) {
+          .movie-card a div[style*="padding"] {
+            padding: 6px 7px 8px;
+          }
+        }
+      `}</style>
         </div>
     )
 }
