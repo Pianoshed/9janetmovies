@@ -91,8 +91,15 @@ def save_youtube_movie(raw_title, video_id, yt_poster, yt_description):
     tmdb = tmdb_search(clean_title_for_search(title))
     poster      = (tmdb.get('poster')      if tmdb else None) or yt_poster
     description = (tmdb.get('description') if tmdb else None) or clean_description(yt_description)
-    genre       = (tmdb.get('genre')       if tmdb else None) or detect_genre_from_title(title) or 'Nollywood'
     year        = (tmdb.get('year')        if tmdb else None) or CURRENT_YEAR
+
+    # Always tag as Nollywood since it came from a Nollywood query.
+    # Append TMDB genre as secondary info if it adds something useful.
+    tmdb_genre = tmdb.get('genre') if tmdb else None
+    if tmdb_genre and tmdb_genre.lower() != 'nollywood':
+        genre = f'Nollywood, {tmdb_genre}'
+    else:
+        genre = 'Nollywood'
 
     try:
         existing = Movie.query.filter_by(slug=slug).first()
@@ -104,6 +111,10 @@ def save_youtube_movie(raw_title, video_id, yt_poster, yt_description):
                 updated = True
             if not existing.description and description:
                 existing.description = description
+                updated = True
+            # Fix genre if it wasn't tagged Nollywood previously
+            if existing.genre and 'nollywood' not in existing.genre.lower():
+                existing.genre = f'Nollywood, {existing.genre}'
                 updated = True
             if updated:
                 db.session.commit()
