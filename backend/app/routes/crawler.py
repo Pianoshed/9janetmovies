@@ -34,6 +34,27 @@ def trigger_crawl():
     from flask import current_app
 
     app = current_app._get_current_object()
+    
+@crawler_bp.route('/api/crawl/youtube', methods=['POST'])
+def trigger_youtube_crawl():
+    token = request.headers.get('X-Crawler-Token')
+    if token != CRAWLER_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    from app.crawler.youtube import run_youtube_crawl
+    from flask import current_app
+
+    app = current_app._get_current_object()
+
+    def run():
+        with app.app_context():
+            run_youtube_crawl(max_results_per_query=20)
+
+    thread = threading.Thread(target=run)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'status': 'YouTube crawl started'}), 200
 
     def run():
         with app.app_context():
