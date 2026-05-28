@@ -1,7 +1,9 @@
+import os
 from flask import Blueprint, jsonify, request
 from app.models.movie import Movie
 from app.models.download_link import DownloadLink
 from sqlalchemy import exists, and_
+from app import db
 
 movies_bp = Blueprint('movies', __name__, url_prefix='/api')
 
@@ -14,6 +16,22 @@ def has_non_youtube_link():
             DownloadLink.host != 'YouTube'
         )
     )
+
+
+@movies_bp.route('/movies/<slug>', methods=['DELETE'])
+def delete_movie(slug):
+    token = request.headers.get('X-Crawler-Token')
+    if token != os.getenv('CRAWLER_SECRET', 'secret123'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    movie = Movie.query.filter_by(slug=slug).first_or_404()
+
+    # Delete download links first (foreign key)
+    DownloadLink.query.filter_by(movie_id=movie.id).delete()
+    db.session.delete(movie)
+    db.session.commit()
+
+    return jsonify({'status': f'Deleted: {movie.title}'}), 200
 
 
 @movies_bp.route('/movies')
