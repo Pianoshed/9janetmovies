@@ -16,9 +16,11 @@ export default function Header() {
 
     function handleSearch(e: React.FormEvent) {
         e.preventDefault()
-        if (query.trim()) {
-            router.push(`/search?q=${encodeURIComponent(query.trim())}`)
-            setQuery('')
+        const trimmed = query.trim()
+        if (trimmed) {
+            router.push(`/search?q=${encodeURIComponent(trimmed)}`)
+            // Don't clear query — user can see what they searched
+            // and can edit it for a new search
         }
     }
 
@@ -45,7 +47,7 @@ export default function Header() {
                     9janet<span style={{ color: 'var(--red-light)' }}>movies</span>
                 </Link>
 
-                {/* Subtitle — desktop only, absolute so it doesn't push logo */}
+                {/* Subtitle — desktop only */}
                 <div style={{
                     position: 'absolute',
                     right: '14px',
@@ -57,7 +59,7 @@ export default function Header() {
                     Free Movie Downloads
                 </div>
 
-                {/* Hamburger — mobile only, absolute so it doesn't push logo */}
+                {/* Hamburger — mobile only */}
                 <button
                     onClick={() => setMenuOpen(o => !o)}
                     aria-label="Toggle menu"
