@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app.models.blog_post import BlogPost
-from app.extensions import db
+from app import db
 from newspaper import Article
 
 blog_bp = Blueprint('blog', __name__, url_prefix='/api')
