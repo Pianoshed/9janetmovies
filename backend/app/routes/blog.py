@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.models.blog_post import BlogPost
+from app.extensions import db
+from newspaper import Article
 
 blog_bp = Blueprint('blog', __name__, url_prefix='/api')
 
@@ -30,4 +32,17 @@ def get_posts():
 @blog_bp.route('/blog/<slug>')
 def get_post(slug):
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
-    return jsonify(post.to_dict())
+    data = post.to_dict()
+
+    if not post.content and post.source_url:
+        try:
+            article = Article(post.source_url)
+            article.download()
+            article.parse()
+            post.content = article.text
+            db.session.commit()
+            data['content'] = article.text
+        except:
+            data['content'] = post.summary  # fallback to summary
+
+    return jsonify(data)
