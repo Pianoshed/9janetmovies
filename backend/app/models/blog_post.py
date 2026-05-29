@@ -9,6 +9,7 @@ class BlogPost(db.Model):
     title        = db.Column(db.String(300), nullable=False)
     slug         = db.Column(db.String(320), unique=True, nullable=False)
     summary      = db.Column(db.Text)
+    content      = db.Column(db.Text)        # ← full article content
     image_url    = db.Column(db.String(500))
     source_name  = db.Column(db.String(100))
     source_url   = db.Column(db.String(500))
@@ -22,6 +23,7 @@ class BlogPost(db.Model):
             'title':        self.title,
             'slug':         self.slug,
             'summary':      self.summary,
+            'content':      self.content,
             'image_url':    self.image_url,
             'source_name':  self.source_name,
             'source_url':   self.source_url,

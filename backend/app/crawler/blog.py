@@ -20,7 +20,6 @@ HEADERS = {
     )
 }
 
-# ── RSS SOURCES ───────────────────────────────────────────────
 SOURCES = [
     {
         'name':     'Linda Ikeji Blog',
@@ -54,7 +53,6 @@ SOURCES = [
     },
 ]
 
-# ── KEYWORDS TO FILTER FOR RELEVANT CONTENT ───────────────────
 RELEVANT_KEYWORDS = [
     'movie', 'film', 'nollywood', 'cinema', 'actress', 'actor',
     'celebrity', 'music', 'album', 'single', 'concert', 'award',
@@ -63,10 +61,15 @@ RELEVANT_KEYWORDS = [
     'yoruba', 'igbo', 'hausa', 'naija', 'nigerian',
 ]
 
-# ── ADULT CONTENT FILTER ──────────────────────────────────────
 ADULT_KEYWORDS = [
     'porn', 'xxx', 'nude', 'naked', 'sex tape', 'erotic',
     'hardcore', 'onlyfans', 'adult content',
+]
+
+# Tags to strip from article content
+JUNK_TAGS = [
+    'script', 'style', 'iframe', 'form', 'nav', 'footer',
+    'header', 'aside', 'button', 'input', 'select',
 ]
 
 
@@ -82,27 +85,21 @@ def slugify(text):
 
 def is_relevant(title, summary=''):
     combined = (title + ' ' + (summary or '')).lower()
-    # Block adult content
     if any(kw in combined for kw in ADULT_KEYWORDS):
         return False
-    # Must match at least one relevant keyword
     return any(kw in combined for kw in RELEVANT_KEYWORDS)
 
 
 def extract_image(item_soup, entry_text=''):
-    """Try multiple strategies to find an image in an RSS item."""
-    # 1. media:content or media:thumbnail
     for tag in ['media:content', 'media:thumbnail']:
         media = item_soup.find(tag)
         if media and media.get('url', '').startswith('http'):
             return media['url']
 
-    # 2. enclosure tag
     enc = item_soup.find('enclosure', type=lambda t: t and 'image' in t)
     if enc and enc.get('url', '').startswith('http'):
         return enc['url']
 
-    # 3. First <img> in description/content
     if entry_text:
         img = BeautifulSoup(entry_text, 'lxml').find('img')
         if img and img.get('src', '').startswith('http'):
@@ -112,7 +109,6 @@ def extract_image(item_soup, entry_text=''):
 
 
 def parse_date(item_soup):
-    """Parse pubDate from RSS item."""
     pub = item_soup.find('pubDate')
     if pub:
         try:
@@ -134,8 +130,87 @@ def fetch_rss(url):
         return None
 
 
-def save_post(title, url, summary, image_url, source_name, category, published_at):
-    """Save a blog post to the DB, skip if already exists."""
+def fetch_full_content(url):
+    """
+    Fetch the full article page and extract clean readable content.
+    Returns (content_html, image_url) tuple.
+    """
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=15)
+        if res.status_code != 200:
+            return None, None
+
+        soup = BeautifulSoup(res.text, 'lxml')
+
+        # Try to get og:image first
+        image_url = None
+        og_img = soup.find('meta', property='og:image')
+        if og_img and og_img.get('content', '').startswith('http'):
+            image_url = og_img['content']
+
+        # Find the main article content
+        article = None
+        for selector in [
+            'article',
+            '.post-body',
+            '.entry-content',
+            '.post-content',
+            '.article-body',
+            '.story-body',
+            '.content-body',
+            'main',
+        ]:
+            article = soup.select_one(selector)
+            if article:
+                break
+
+        if not article:
+            return None, image_url
+
+        # Remove junk tags
+        for tag in article.find_all(JUNK_TAGS):
+            tag.decompose()
+
+        # Remove social share / subscribe divs
+        for el in article.find_all(class_=re.compile(
+            r'share|social|subscribe|newsletter|related|comment|ad|widget|sidebar',
+            re.IGNORECASE
+        )):
+            el.decompose()
+
+        # Extract clean paragraphs as HTML
+        paragraphs = []
+        for tag in article.find_all(['p', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol']):
+            text = tag.get_text(strip=True)
+            if len(text) < 20:
+                continue
+            if any(kw in text.lower() for kw in ADULT_KEYWORDS):
+                continue
+            # Keep as simple HTML
+            if tag.name == 'p':
+                paragraphs.append(f'<p>{text}</p>')
+            elif tag.name in ['h2', 'h3', 'h4']:
+                paragraphs.append(f'<{tag.name}>{text}</{tag.name}>')
+            elif tag.name == 'blockquote':
+                paragraphs.append(f'<blockquote>{text}</blockquote>')
+            elif tag.name in ['ul', 'ol']:
+                items = ''.join(
+                    f'<li>{li.get_text(strip=True)}</li>'
+                    for li in tag.find_all('li')
+                    if li.get_text(strip=True)
+                )
+                if items:
+                    paragraphs.append(f'<{tag.name}>{items}</{tag.name}>')
+
+        content = '\n'.join(paragraphs)
+        return content if len(content) > 100 else None, image_url
+
+    except Exception as e:
+        log.error(f'  Full content fetch error {url}: {e}')
+        return None, None
+
+
+def save_post(title, url, summary, content, image_url, source_name, category, published_at):
     slug = slugify(title)
     if not slug or slug == 'untitled':
         return
@@ -146,17 +221,22 @@ def save_post(title, url, summary, image_url, source_name, category, published_a
         ).first()
 
         if existing:
+            # Update content if it was missing
+            if not existing.content and content:
+                existing.content = content
+                db.session.commit()
             return
 
         post = BlogPost(
-            title       = title[:300],
-            slug        = slug,
-            summary     = summary[:600] if summary else '',
-            image_url   = image_url,
-            source_name = source_name,
-            source_url  = url,
-            category    = category,
-            published_at= published_at,
+            title        = title[:300],
+            slug         = slug,
+            summary      = summary[:600] if summary else '',
+            content      = content,
+            image_url    = image_url,
+            source_name  = source_name,
+            source_url   = url,
+            category     = category,
+            published_at = published_at,
         )
         db.session.add(post)
         db.session.commit()
@@ -181,7 +261,7 @@ def crawl_source(source):
     items = soup.find_all('item')
     count = 0
 
-    for item in items[:30]:  # max 30 per source per run
+    for item in items[:30]:
         try:
             title_tag = item.find('title')
             link_tag  = item.find('link')
@@ -195,30 +275,30 @@ def crawl_source(source):
             if not title or not url:
                 continue
 
-            # Get description/summary
             desc_tag = item.find('description') or item.find('content:encoded')
             raw_desc = desc_tag.get_text(strip=True) if desc_tag else ''
-            # Strip HTML tags from summary
-            summary = BeautifulSoup(raw_desc, 'lxml').get_text(separator=' ')[:600].strip()
+            summary  = BeautifulSoup(raw_desc, 'lxml').get_text(separator=' ')[:600].strip()
 
-            # Filter for relevant content only
             if not is_relevant(title, summary):
                 continue
 
-            image_url    = extract_image(item, raw_desc)
+            # Fetch full article content from the page
+            content, page_image = fetch_full_content(url)
+            image_url = extract_image(item, raw_desc) or page_image
             published_at = parse_date(item)
 
             save_post(
                 title        = title,
                 url          = url,
                 summary      = summary,
+                content      = content,
                 image_url    = image_url,
                 source_name  = name,
                 category     = category,
                 published_at = published_at,
             )
             count += 1
-            time.sleep(0.1)
+            time.sleep(0.5)  # slightly longer delay since we're fetching full pages
 
         except Exception as e:
             log.error(f'  Error processing item from {name}: {e}')
@@ -240,7 +320,7 @@ def run_blog_crawl():
             log.error(f'  Source failed {source["name"]}: {e}')
         time.sleep(1)
 
-    # Keep only the latest 200 posts to avoid DB bloat
+    # Keep only the latest 200 posts
     try:
         latest_ids = [
             r.id for r in BlogPost.query

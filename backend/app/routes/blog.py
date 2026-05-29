@@ -25,3 +25,9 @@ def get_posts():
         'pages':   posts.pages,
         'current': posts.page,
     })
+
+
+@blog_bp.route('/blog/<slug>')
+def get_post(slug):
+    post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    return jsonify(post.to_dict())
