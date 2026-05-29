@@ -1,9 +1,36 @@
 from flask import Blueprint, jsonify, request
 from app.models.blog_post import BlogPost
 from app import db
-from newspaper import Article
+import requests
+from bs4 import BeautifulSoup
 
 blog_bp = Blueprint('blog', __name__, url_prefix='/api')
+
+
+def scrape_article_content(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        res = requests.get(url, timeout=10, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Remove junk
+        for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+            tag.decompose()
+        
+        # Try common article containers
+        article = (
+            soup.find('article') or
+            soup.find(class_='article-body') or
+            soup.find(class_='post-content') or
+            soup.find(class_='entry-content') or
+            soup.find('main')
+        )
+        
+        if article:
+            return article.get_text(separator='\n', strip=True)
+        return None
+    except Exception:
+        return None
 
 
 @blog_bp.route('/blog')
@@ -35,14 +62,10 @@ def get_post(slug):
     data = post.to_dict()
 
     if not post.content and post.source_url:
-        try:
-            article = Article(post.source_url)
-            article.download()
-            article.parse()
-            post.content = article.text
+        content = scrape_article_content(post.source_url)
+        if content:
+            post.content = content
             db.session.commit()
-            data['content'] = article.text
-        except:
-            data['content'] = post.summary  # fallback to summary
+        data['content'] = content or post.summary
 
     return jsonify(data)
