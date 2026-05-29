@@ -27,6 +27,10 @@ def create_app():
     from app.models.admin_user import AdminUser
     from app.models.blog_post import BlogPost
 
+    # Create any missing tables on startup (safe to leave permanently)
+    with app.app_context():
+        db.create_all()
+
     from app.routes.blog import blog_bp
     from app.routes.crawler import crawler_bp
     from app.routes.movies import movies_bp

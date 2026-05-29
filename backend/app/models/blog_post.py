@@ -5,16 +5,16 @@ from datetime import datetime
 class BlogPost(db.Model):
     __tablename__ = 'blog_post'
 
-    id          = db.Column(db.Integer, primary_key=True)
-    title       = db.Column(db.String(300), nullable=False)
-    slug        = db.Column(db.String(320), unique=True, nullable=False)
-    summary     = db.Column(db.Text)
-    image_url   = db.Column(db.String(500))
-    source_name = db.Column(db.String(100))   # e.g. "Linda Ikeji Blog"
-    source_url  = db.Column(db.String(500))   # original article URL
-    category    = db.Column(db.String(50))    # e.g. "Celebrity", "Nollywood"
-    published_at= db.Column(db.DateTime, default=datetime.utcnow)
-    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    id           = db.Column(db.Integer, primary_key=True)
+    title        = db.Column(db.String(300), nullable=False)
+    slug         = db.Column(db.String(320), unique=True, nullable=False)
+    summary      = db.Column(db.Text)
+    image_url    = db.Column(db.String(500))
+    source_name  = db.Column(db.String(100))
+    source_url   = db.Column(db.String(500))
+    category     = db.Column(db.String(50))
+    published_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
