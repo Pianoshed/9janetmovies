@@ -6,6 +6,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import SectionHeading from '@/components/ui/SectionHeading'
 import Pagination from '@/components/movies/Pagination'
 import FilterBar from '@/components/movies/FilterBar'
+import BlogSection from '@/components/blog/BlogSection'
 
 export default async function Home() {
   const [data, trending, series] = await Promise.all([
@@ -31,6 +32,9 @@ export default async function Home() {
           </Suspense>
           <MovieGrid movies={data.movies} />
           <Pagination current={1} total={data.pages} basePath="page" />
+
+          {/* Entertainment News — below movies */}
+          <BlogSection />
         </main>
 
         <div className="sidebar-wrapper">

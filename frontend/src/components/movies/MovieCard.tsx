@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { Movie } from '@/lib/types'
 
 interface Props {
@@ -7,39 +8,44 @@ interface Props {
 
 export default function MovieCard({ movie }: Props) {
     return (
-        <div style={{
-            background: 'var(--white)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            transition: 'box-shadow 0.15s ease',
-        }}
+        <div
+            style={{
+                background: 'var(--white)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                transition: 'box-shadow 0.15s ease',
+            }}
             className="movie-card"
         >
             <Link href={`/movie/${movie.slug}`} style={{ display: 'block' }}>
 
                 {/* POSTER */}
-                {movie.poster_url ? (
-                    <img
-                        src={movie.poster_url}
-                        alt={movie.title}
-                        loading="lazy"
-                        style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', display: 'block' }}
-                    />
-                ) : (
-                    <div style={{
-                        width: '100%',
-                        aspectRatio: '2/3',
-                        background: '#dce3f5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '36px',
-                        color: '#aac0ff',
-                    }}>
-                        🎬
-                    </div>
-                )}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>
+                    {movie.poster_url ? (
+                        <Image
+                            src={movie.poster_url}
+                            alt={movie.title}
+                            fill
+                            sizes="(max-width: 360px) 45vw, (max-width: 480px) 45vw, (max-width: 700px) 30vw, 160px"
+                            style={{ objectFit: 'cover' }}
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div style={{
+                            width: '100%',
+                            height: '100%',
+                            background: '#dce3f5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '36px',
+                            color: '#aac0ff',
+                        }}>
+                            🎬
+                        </div>
+                    )}
+                </div>
 
                 {/* BODY */}
                 <div style={{ padding: '7px 8px 9px' }}>
@@ -80,15 +86,15 @@ export default function MovieCard({ movie }: Props) {
             </Link>
 
             <style>{`
-        .movie-card:hover {
-          box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-        }
-        @media (max-width: 480px) {
-          .movie-card a div[style*="padding"] {
-            padding: 6px 7px 8px;
-          }
-        }
-      `}</style>
+                .movie-card:hover {
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+                }
+                @media (max-width: 480px) {
+                    .movie-card a div[style*="padding"] {
+                        padding: 6px 7px 8px;
+                    }
+                }
+            `}</style>
         </div>
     )
 }
