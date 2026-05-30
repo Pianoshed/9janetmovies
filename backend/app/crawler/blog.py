@@ -184,8 +184,22 @@ def fetch_full_content(url):
             text = tag.get_text(strip=True)
             if len(text) < 20:
                 continue
-            if any(kw in text.lower() for kw in ADULT_KEYWORDS):
-                continue
+if any(kw in text.lower() for kw in ADULT_KEYWORDS):
+    continue
+
+JUNK_PHRASES = [
+    'read also', 'follow us', 'follow legit', 'find it fast',
+    'subscribe', 'newsletter', 'breaking news to viral',
+    'click here', 'source:', 'tags:', 'hot:', 'authors:',
+    'contact:', 'compiled some', 'read the comments',
+    'commented:', ' said:', 'reactions that trailed',
+    'legit.ng reported', 'legit.ng also', 'also reported',
+    'share on', 'send this', 'whatsapp', 'copy link',
+]
+        if any(phrase in text.lower() for phrase in JUNK_PHRASES):
+            continue
+        if len(text) < 40:
+            continue
             # Keep as simple HTML
             if tag.name == 'p':
                 paragraphs.append(f'<p>{text}</p>')
