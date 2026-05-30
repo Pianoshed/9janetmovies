@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 from app import db
 from app.models.blog_post import BlogPost
 
-# Suppress SSL warnings for sites with broken certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 log = logging.getLogger(__name__)
@@ -22,15 +21,17 @@ HEADERS = {
         'AppleWebKit/537.36 (KHTML, like Gecko) '
         'Chrome/124.0.0.0 Safari/537.36'
     ),
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate',
-    'Connection': 'keep-alive',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
     'Referer': 'https://www.google.com/',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
 }
 
 SOURCES = [
-    # ── Celebrity / Gossip ────────────────────────────────────────────
+    # ── Celebrity / Gossip ─────────────────────────────────────────────────
     {
         'name':     'Linda Ikeji Blog',
         'rss':      'https://www.lindaikejisblog.com/feeds/posts/default?alt=rss',
@@ -47,78 +48,80 @@ SOURCES = [
         'name':     'BellaNaija',
         'rss':      'https://www.bellanaija.com/feed/',
         'category': 'Celebrity',
-        'verify':   False,   # SSL cert broken — skip verification
+        'verify':   False,
     },
     {
-        'name':     'SDK Blog',
+        'name':     'BellaNaija Nollywood',
+        'rss':      'https://www.bellanaija.com/nollywood/feed/',
+        'category': 'Nollywood',
+        'verify':   False,
+    },
+    {
+        'name':     'Kemi Filani',
+        'rss':      'https://kemifilani.ng/feed/',
+        'category': 'Celebrity',
+        'verify':   True,
+    },
+    {
+        'name':     'Instablog9ja',
         'rss':      'https://www.instablog9ja.com/feed/',
         'category': 'Celebrity',
         'verify':   True,
     },
 
-    # ── General Nigerian News ─────────────────────────────────────────
+    # ── Nollywood / Movies ────────────────────────────────────────────────
     {
-        'name':     'Pulse Nigeria Entertainment',
-        'rss':      'https://www.pulse.ng/entertainment/rss',   # fixed: was /rss
+        'name':     'Kemi Filani Movies',
+        'rss':      'https://kemifilani.ng/movies/feed/',
+        'category': 'Nollywood',
+        'verify':   True,
+    },
+
+    # ── General Entertainment News ────────────────────────────────────────
+    {
+        'name':     'Legit.ng',
+        'rss':      'https://www.legit.ng/rss/all.rss',
         'category': 'Entertainment',
         'verify':   True,
     },
     {
-        'name':     'Pulse Nigeria Lifestyle',
-        'rss':      'https://www.pulse.ng/lifestyle/rss',
-        'category': 'General',
-        'verify':   True,
-    },
-    {
-        'name':     'Legit.ng',
-        'rss':      'https://www.legit.ng/rss/all.rss',
-        'category': 'General',
-        'verify':   True,
-    },
-    {
-        'name':     'Guardian Nigeria Entertainment',
-        'rss':      'https://guardian.ng/category/art/entertainment/feed/',  # replaces thecable (403)
+        'name':     'PM News Entertainment',
+        'rss':      'https://pmnewsnigeria.com/category/entertainment/feed/',
         'category': 'Entertainment',
         'verify':   True,
     },
     {
         'name':     'Daily Post Nigeria',
-        'rss':      'https://dailypost.ng/feed/',               # replaces Punch (404)
+        'rss':      'https://dailypost.ng/feed/',
+        'category': 'Entertainment',
+        'verify':   False,
+    },
+    {
+        'name':     'Channels TV',
+        'rss':      'https://www.channelstv.com/feed/',
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'The Punch',
+        'rss':      'https://punchng.com/feed/',
         'category': 'Entertainment',
         'verify':   True,
     },
     {
         'name':     'Vanguard Nigeria',
-        'rss':      'https://www.vanguardngr.com/feed/',        # fixed: top-level feed (was /entertainment/feed/ → 403)
+        'rss':      'https://www.vanguardngr.com/feed/',
         'category': 'Entertainment',
         'verify':   True,
     },
     {
-        'name':     'Premium Times',
-        'rss':      'https://www.premiumtimesng.com/feed',
-        'category': 'General',
-        'verify':   True,
-    },
-    {
-        'name':     'The Punch',
-        'rss':      'https://punchng.com/feed/',                # fixed: top-level feed (was /category/entertainment/feed/ → 404)
-        'category': 'Entertainment',
-        'verify':   True,
-    },
-    {
-        'name':     'TheCable',
-        'rss':      'https://www.thecable.ng/feed',             # fixed: top-level feed (was /category/lifestyle/entertainment/feed → 403)
+        'name':     'NNN Entertainment',
+        'rss':      'https://nnn.ng/category/entertainment/feed/',
         'category': 'Entertainment',
         'verify':   True,
     },
 
-    # ── Music ─────────────────────────────────────────────────────────
-    {
-        'name':     'Tooxclusive',
-        'rss':      'https://tooxclusive.com/feed/',
-        'category': 'Music',
-        'verify':   True,
-    },
+    # ── Music ─────────────────────────────────────────────────────────────
     {
         'name':     'NotJustOk',
         'rss':      'https://www.notjustok.com/feed/',
@@ -126,20 +129,26 @@ SOURCES = [
         'verify':   True,
     },
     {
-        'name':     'TooXclusive',
-        'rss':      'https://www.tooXclusive.com/feed/',
+        'name':     'Tooxclusive',
+        'rss':      'https://tooxclusive.com/feed/',
         'category': 'Music',
         'verify':   True,
     },
     {
-        'name':     'Afrocharts',
-        'rss':      'https://afrocharts.com/feed/',             # replaces Naijaloaded (404)
+        'name':     'Naijaloaded',
+        'rss':      'https://naijaloaded.com.ng/feed/',
         'category': 'Music',
         'verify':   True,
     },
     {
-        'name':     'Jaguda Music',
-        'rss':      'https://jaguda.com/feed/',
+        'name':     'Okhype',
+        'rss':      'https://www.okhype.com/feed/',
+        'category': 'Music',
+        'verify':   True,
+    },
+    {
+        'name':     '247NaijaBuzz',
+        'rss':      'https://www.247naijabuzz.com/feed/',
         'category': 'Music',
         'verify':   True,
     },
@@ -165,14 +174,10 @@ JUNK_TAGS = [
 
 JUNK_PHRASES = [
     'read also', 'follow us', 'follow legit', 'find it fast',
-    'subscribe', 'newsletter', 'breaking news to viral',
-    'click here', 'source:', 'tags:', 'hot:', 'authors:',
-    'contact:', 'compiled some', 'read the comments',
-    'commented:', ' said:', 'reactions that trailed',
-    'legit.ng reported', 'legit.ng also', 'also reported',
-    'share on', 'send this', 'whatsapp', 'copy link',
-    'from breaking news', 'follow pulse', 'follow bellanaija',
-    'advertisement', 'sponsored', 'promo code',
+    'subscribe', 'newsletter', 'click here', 'source:', 'tags:',
+    'contact:', 'share on', 'send this', 'whatsapp', 'copy link',
+    'advertisement', 'sponsored', 'promo code', 'follow pulse',
+    'follow bellanaija', 'legit.ng reported', 'also reported',
 ]
 
 
@@ -198,16 +203,13 @@ def extract_image(item_soup, entry_text=''):
         media = item_soup.find(tag)
         if media and media.get('url', '').startswith('http'):
             return media['url']
-
     enc = item_soup.find('enclosure', type=lambda t: t and 'image' in t)
     if enc and enc.get('url', '').startswith('http'):
         return enc['url']
-
     if entry_text:
         img = BeautifulSoup(entry_text, 'lxml').find('img')
         if img and img.get('src', '').startswith('http'):
             return img['src']
-
     return None
 
 
@@ -223,17 +225,19 @@ def parse_date(item_soup):
 
 def fetch_rss(url, verify=True):
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15, verify=verify)
+        res = requests.get(url, headers=HEADERS, timeout=20, verify=verify)
         if res.status_code != 200:
             log.warning(f'RSS fetch failed {res.status_code}: {url}')
             return None
         return res.text
     except requests.exceptions.SSLError:
-        # Retry without SSL verification if cert is bad
         if verify:
             log.warning(f'SSL error for {url} — retrying with verify=False')
             return fetch_rss(url, verify=False)
         log.error(f'SSL error (verify=False also failed): {url}')
+        return None
+    except requests.exceptions.Timeout:
+        log.warning(f'Timeout fetching RSS: {url}')
         return None
     except Exception as e:
         log.error(f'RSS fetch error {url}: {e}')
@@ -243,29 +247,21 @@ def fetch_rss(url, verify=True):
 def fetch_full_content(url, verify=True):
     """Fetch full article and return (clean_content, image_url)."""
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15, verify=verify)
+        res = requests.get(url, headers=HEADERS, timeout=20, verify=verify)
         if res.status_code != 200:
             return None, None
 
         soup = BeautifulSoup(res.text, 'lxml')
 
-        # Get og:image
         image_url = None
         og_img = soup.find('meta', property='og:image')
         if og_img and og_img.get('content', '').startswith('http'):
             image_url = og_img['content']
 
-        # Find article body
         article = None
         for selector in [
-            'article',
-            '.post-body',
-            '.entry-content',
-            '.post-content',
-            '.article-body',
-            '.story-body',
-            '.content-body',
-            'main',
+            'article', '.post-body', '.entry-content', '.post-content',
+            '.article-body', '.story-body', '.content-body', 'main',
         ]:
             article = soup.select_one(selector)
             if article:
@@ -274,29 +270,24 @@ def fetch_full_content(url, verify=True):
         if not article:
             return None, image_url
 
-        # Remove junk tags
         for tag in article.find_all(JUNK_TAGS):
             tag.decompose()
 
-        # Remove social/share/subscribe divs
         for el in article.find_all(class_=re.compile(
             r'share|social|subscribe|newsletter|related|comment|ad|widget|sidebar',
             re.IGNORECASE
         )):
             el.decompose()
 
-        # Extract clean paragraphs
         paragraphs = []
         for tag in article.find_all(['p', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol']):
             text = tag.get_text(strip=True)
-
             if len(text) < 40:
                 continue
             if any(kw in text.lower() for kw in ADULT_KEYWORDS):
                 continue
             if any(phrase in text.lower() for phrase in JUNK_PHRASES):
                 continue
-
             if tag.name == 'p':
                 paragraphs.append(f'<p>{text}</p>')
             elif tag.name in ['h2', 'h3', 'h4']:
@@ -319,7 +310,9 @@ def fetch_full_content(url, verify=True):
         if verify:
             log.warning(f'SSL error fetching article {url} — retrying with verify=False')
             return fetch_full_content(url, verify=False)
-        log.error(f'SSL error (verify=False also failed) fetching article: {url}')
+        return None, None
+    except requests.exceptions.Timeout:
+        log.warning(f'Timeout fetching article: {url}')
         return None, None
     except Exception as e:
         log.error(f'Full content fetch error {url}: {e}')
@@ -330,18 +323,15 @@ def save_post(title, url, summary, content, image_url, source_name, category, pu
     slug = slugify(title)
     if not slug or slug == 'untitled':
         return
-
     try:
         existing = BlogPost.query.filter(
             (BlogPost.slug == slug) | (BlogPost.source_url == url)
         ).first()
-
         if existing:
             if not existing.content and content:
                 existing.content = content
                 db.session.commit()
             return
-
         post = BlogPost(
             title        = title[:300],
             slug         = slug,
@@ -356,7 +346,6 @@ def save_post(title, url, summary, content, image_url, source_name, category, pu
         db.session.add(post)
         db.session.commit()
         log.info(f'  ✓ [{source_name}] {title[:60]}')
-
     except Exception as e:
         db.session.rollback()
         log.error(f'  DB error saving post "{title[:60]}": {e}')
@@ -381,13 +370,10 @@ def crawl_source(source):
         try:
             title_tag = item.find('title')
             link_tag  = item.find('link')
-
             if not title_tag or not link_tag:
                 continue
-
             title = title_tag.get_text(strip=True)
             url   = link_tag.get_text(strip=True)
-
             if not title or not url:
                 continue
 
@@ -399,7 +385,7 @@ def crawl_source(source):
                 continue
 
             content, page_image = fetch_full_content(url, verify=verify)
-            image_url = extract_image(item, raw_desc) or page_image
+            image_url    = extract_image(item, raw_desc) or page_image
             published_at = parse_date(item)
 
             save_post(
