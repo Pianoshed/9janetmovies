@@ -30,136 +30,201 @@ HEADERS = {
     'Upgrade-Insecure-Requests': '1',
 }
 
+# ── All sources below are free, publicly available RSS feeds ──────────────────
+
 SOURCES = [
-    # ── Celebrity / Gossip ─────────────────────────────────────────────────
+    # ── Fitness & Exercise ────────────────────────────────────────────────
     {
-        'name':     'Linda Ikeji Blog',
-        'rss':      'https://www.lindaikejisblog.com/feeds/posts/default?alt=rss',
-        'category': 'Celebrity',
+        'name':     'Nerd Fitness',
+        'rss':      'https://www.nerdfitness.com/blog/feed/',
+        'category': 'Fitness',
         'verify':   True,
     },
     {
-        'name':     'SDK Celebrities',
-        'rss':      'https://www.stelladimokokorkus.com/feeds/posts/default?alt=rss',
-        'category': 'Celebrity',
+        'name':     'Breaking Muscle',
+        'rss':      'https://breakingmuscle.com/feed/',
+        'category': 'Fitness',
         'verify':   True,
     },
     {
-        'name':     'BellaNaija',
-        'rss':      'https://www.bellanaija.com/feed/',
-        'category': 'Celebrity',
-        'verify':   False,
-    },
-    {
-        'name':     'BellaNaija Nollywood',
-        'rss':      'https://www.bellanaija.com/nollywood/feed/',
-        'category': 'Nollywood',
-        'verify':   False,
-    },
-    {
-        'name':     'Kemi Filani',
-        'rss':      'https://kemifilani.ng/feed/',
-        'category': 'Celebrity',
+        'name':     'Girls Gone Strong',
+        'rss':      'https://www.girlsgonestrong.com/blog/feed/',
+        'category': 'Fitness',
         'verify':   True,
     },
     {
-        'name':     'Instablog9ja',
-        'rss':      'https://www.instablog9ja.com/feed/',
-        'category': 'Celebrity',
+        'name':     'BarBend',
+        'rss':      'https://barbend.com/feed/',
+        'category': 'Fitness',
         'verify':   True,
     },
 
-    # ── Nollywood / Movies ────────────────────────────────────────────────
+    # ── Nutrition & Diet ─────────────────────────────────────────────────
     {
-        'name':     'Kemi Filani Movies',
-        'rss':      'https://kemifilani.ng/movies/feed/',
-        'category': 'Nollywood',
+        'name':     'Precision Nutrition',
+        'rss':      'https://www.precisionnutrition.com/feed',
+        'category': 'Nutrition',
+        'verify':   True,
+    },
+    {
+        'name':     'Healthline Nutrition',
+        'rss':      'https://www.healthline.com/rss/nutrition',
+        'category': 'Nutrition',
+        'verify':   True,
+    },
+    {
+        'name':     'Examine.com',
+        'rss':      'https://examine.com/feed/',
+        'category': 'Nutrition',
+        'verify':   True,
+    },
+    {
+        'name':     'Nom Nom Paleo',
+        'rss':      'https://nomnompaleo.com/feed',
+        'category': 'Nutrition',
         'verify':   True,
     },
 
-    # ── General Entertainment News ────────────────────────────────────────
+    # ── Mental Wellness & Mindfulness ─────────────────────────────────────
     {
-        'name':     'Legit.ng',
-        'rss':      'https://www.legit.ng/rss/all.rss',
-        'category': 'Entertainment',
+        'name':     'Mindful',
+        'rss':      'https://www.mindful.org/feed/',
+        'category': 'Mental Wellness',
         'verify':   True,
     },
     {
-        'name':     'PM News Entertainment',
-        'rss':      'https://pmnewsnigeria.com/category/entertainment/feed/',
-        'category': 'Entertainment',
+        'name':     'Psychology Today Wellness',
+        'rss':      'https://www.psychologytoday.com/us/front/feed',
+        'category': 'Mental Wellness',
         'verify':   True,
     },
     {
-        'name':     'Daily Post Nigeria',
-        'rss':      'https://dailypost.ng/feed/',
-        'category': 'Entertainment',
-        'verify':   False,
-    },
-    {
-        'name':     'Channels TV',
-        'rss':      'https://www.channelstv.com/feed/',
-        'category': 'Entertainment',
-        'verify':   True,
-    },
-    {
-        'name':     'The Punch',
-        'rss':      'https://punchng.com/feed/',
-        'category': 'Entertainment',
-        'verify':   True,
-    },
-    {
-        'name':     'Vanguard Nigeria',
-        'rss':      'https://www.vanguardngr.com/feed/',
-        'category': 'Entertainment',
-        'verify':   True,
-    },
-    {
-        'name':     'NNN Entertainment',
-        'rss':      'https://nnn.ng/category/entertainment/feed/',
-        'category': 'Entertainment',
+        'name':     'Greater Good Science Center',
+        'rss':      'https://greatergood.berkeley.edu/feeds/all-articles.xml',
+        'category': 'Mental Wellness',
         'verify':   True,
     },
 
-    # ── Music ─────────────────────────────────────────────────────────────
+    # ── Healthy Living & Lifestyle ────────────────────────────────────────
     {
-        'name':     'NotJustOk',
-        'rss':      'https://www.notjustok.com/feed/',
-        'category': 'Music',
+        'name':     'Well+Good',
+        'rss':      'https://www.wellandgood.com/feed/',
+        'category': 'Lifestyle',
         'verify':   True,
     },
     {
-        'name':     'Tooxclusive',
-        'rss':      'https://tooxclusive.com/feed/',
-        'category': 'Music',
+        'name':     'MindBodyGreen',
+        'rss':      'https://www.mindbodygreen.com/rss.xml',
+        'category': 'Lifestyle',
         'verify':   True,
     },
     {
-        'name':     'Naijaloaded',
-        'rss':      'https://naijaloaded.com.ng/feed/',
-        'category': 'Music',
+        'name':     'Healthline',
+        'rss':      'https://www.healthline.com/rss/health-news',
+        'category': 'Lifestyle',
         'verify':   True,
     },
     {
-        'name':     'Okhype',
-        'rss':      'https://www.okhype.com/feed/',
-        'category': 'Music',
+        'name':     'Medical News Today',
+        'rss':      'https://www.medicalnewstoday.com/rss',
+        'category': 'Lifestyle',
+        'verify':   True,
+    },
+
+    # ── Weight Loss & Body Transformation ────────────────────────────────
+    {
+        'name':     'Obesity Help',
+        'rss':      'https://www.obesityhelp.com/articles/rss/',
+        'category': 'Weight Loss',
         'verify':   True,
     },
     {
-        'name':     '247NaijaBuzz',
-        'rss':      'https://www.247naijabuzz.com/feed/',
-        'category': 'Music',
+        'name':     'Lose It! Blog',
+        'rss':      'https://blog.loseit.com/feed/',
+        'category': 'Weight Loss',
+        'verify':   True,
+    },
+
+    # ── Sleep & Recovery ─────────────────────────────────────────────────
+    {
+        'name':     'Sleep Foundation',
+        'rss':      'https://www.sleepfoundation.org/feed',
+        'category': 'Recovery',
+        'verify':   True,
+    },
+
+    # ── YouTube Channels (via RSS — no API key needed) ────────────────────
+    # YouTube exposes free, public RSS feeds for every channel.
+    # Format: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
+    {
+        'name':     'Jeff Nippard (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC68TLK0mAEzUyHx5x5k-S1Q',
+        'category': 'Fitness',
+        'verify':   True,
+    },
+    {
+        'name':     'Athlean-X (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCe0TLA0EsQbE-MjuHXevran',
+        'category': 'Fitness',
+        'verify':   True,
+    },
+    {
+        'name':     'Doctor Mike (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC0QHWhjbe5fGJEPz3sZqH6A',
+        'category': 'Lifestyle',
+        'verify':   True,
+    },
+    {
+        'name':     'Thomas DeLauer – Nutrition (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC70SrI3VkT1MXALRtf0pcHg',
+        'category': 'Nutrition',
+        'verify':   True,
+    },
+    {
+        'name':     'Yoga With Adriene (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCFKE7WVJfvaHW5q283SxchA',
+        'category': 'Mental Wellness',
+        'verify':   True,
+    },
+    {
+        'name':     'Autumn Bates – Nutrition (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCnLRo9llNnMiRRIxqm3F0Eg',
+        'category': 'Nutrition',
+        'verify':   True,
+    },
+    {
+        'name':     'Chloe Ting – Fitness (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCCgLoMYIyP0U56dEhEL1wXQ',
+        'category': 'Fitness',
+        'verify':   True,
+    },
+    {
+        'name':     'Bob & Brad – Physical Therapy (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCmTe0LsfEbpkDpgrxKAWbRA',
+        'category': 'Recovery',
         'verify':   True,
     },
 ]
 
 RELEVANT_KEYWORDS = [
-    'movie', 'film', 'nollywood', 'cinema', 'actress', 'actor',
-    'celebrity', 'music', 'album', 'single', 'concert', 'award',
-    'entertainment', 'tv', 'series', 'netflix', 'amazon', 'show',
-    'gist', 'drama', 'rapper', 'singer', 'artiste', 'artist',
-    'yoruba', 'igbo', 'hausa', 'naija', 'nigerian',
+    # Fitness
+    'workout', 'exercise', 'training', 'gym', 'muscle', 'strength',
+    'cardio', 'hiit', 'yoga', 'pilates', 'stretching', 'flexibility',
+    'running', 'cycling', 'swimming', 'crossfit', 'bodybuilding',
+    # Nutrition
+    'nutrition', 'diet', 'protein', 'calories', 'carbs', 'fat', 'fibre',
+    'meal', 'recipe', 'eat', 'food', 'supplement', 'vitamin', 'mineral',
+    'intermittent fasting', 'keto', 'paleo', 'vegan', 'plant-based',
+    # Health
+    'health', 'wellness', 'weight loss', 'fat loss', 'metabolism',
+    'blood pressure', 'heart', 'immune', 'inflammation', 'gut',
+    'sleep', 'recovery', 'rest', 'hydration', 'water',
+    # Mental
+    'mental health', 'mindfulness', 'meditation', 'stress', 'anxiety',
+    'mood', 'depression', 'therapy', 'self-care', 'habit', 'motivation',
+    # Lifestyle
+    'lifestyle', 'healthy living', 'body', 'transformation', 'challenge',
+    'tip', 'guide', 'routine', 'plan',
 ]
 
 ADULT_KEYWORDS = [
@@ -173,13 +238,14 @@ JUNK_TAGS = [
 ]
 
 JUNK_PHRASES = [
-    'read also', 'follow us', 'follow legit', 'find it fast',
-    'subscribe', 'newsletter', 'click here', 'source:', 'tags:',
-    'contact:', 'share on', 'send this', 'whatsapp', 'copy link',
-    'advertisement', 'sponsored', 'promo code', 'follow pulse',
-    'follow bellanaija', 'legit.ng reported', 'also reported',
+    'read also', 'follow us', 'subscribe', 'newsletter', 'click here',
+    'source:', 'tags:', 'contact:', 'share on', 'send this',
+    'whatsapp', 'copy link', 'advertisement', 'sponsored', 'promo code',
+    'sign up', 'buy now', 'shop now', 'limited offer', 'discount',
 ]
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def slugify(text):
     text = unicodedata.normalize('NFKD', text)
@@ -213,13 +279,54 @@ def extract_image(item_soup, entry_text=''):
     return None
 
 
+def extract_youtube_thumbnail(item_soup):
+    """Extract YouTube video thumbnail from the RSS feed's media group."""
+    thumb = item_soup.find('media:thumbnail')
+    if thumb and thumb.get('url', '').startswith('http'):
+        return thumb['url']
+    # Fallback: build from video ID
+    video_id_tag = item_soup.find('yt:videoId')
+    if video_id_tag:
+        vid = video_id_tag.get_text(strip=True)
+        return f'https://img.youtube.com/vi/{vid}/hqdefault.jpg'
+    return None
+
+
+def extract_youtube_content(item_soup):
+    """Build an embeddable iframe block for YouTube entries."""
+    video_id_tag = item_soup.find('yt:videoId')
+    if not video_id_tag:
+        return None
+    vid = video_id_tag.get_text(strip=True)
+
+    description = ''
+    media_desc = item_soup.find('media:description')
+    if media_desc:
+        raw = media_desc.get_text(strip=True)[:1200]
+        description = f'<p>{raw}</p>' if raw else ''
+
+    embed = (
+        f'<div class="video-embed" style="position:relative;padding-top:56.25%;margin-bottom:1rem;">'
+        f'<iframe src="https://www.youtube.com/embed/{vid}" '
+        f'frameborder="0" allowfullscreen '
+        f'style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe>'
+        f'</div>'
+    )
+    return embed + description
+
+
+def is_youtube_source(rss_url):
+    return 'youtube.com/feeds/videos.xml' in rss_url
+
+
 def parse_date(item_soup):
-    pub = item_soup.find('pubDate')
-    if pub:
-        try:
-            return parsedate_to_datetime(pub.text.strip()).replace(tzinfo=None)
-        except Exception:
-            pass
+    for tag_name in ['pubDate', 'published', 'updated']:
+        tag = item_soup.find(tag_name)
+        if tag:
+            try:
+                return parsedate_to_datetime(tag.text.strip()).replace(tzinfo=None)
+            except Exception:
+                pass
     return datetime.utcnow()
 
 
@@ -356,6 +463,7 @@ def crawl_source(source):
     rss_url  = source['rss']
     category = source['category']
     verify   = source.get('verify', True)
+    youtube  = is_youtube_source(rss_url)
 
     log.info(f'── Crawling: {name}')
     xml = fetch_rss(rss_url, verify=verify)
@@ -363,29 +471,49 @@ def crawl_source(source):
         return 0
 
     soup  = BeautifulSoup(xml, 'xml')
-    items = soup.find_all('item')
+    # YouTube Atom feeds use <entry>, standard RSS uses <item>
+    items = soup.find_all('entry') if youtube else soup.find_all('item')
     count = 0
 
     for item in items[:50]:
         try:
             title_tag = item.find('title')
-            link_tag  = item.find('link')
-            if not title_tag or not link_tag:
+            if not title_tag:
                 continue
             title = title_tag.get_text(strip=True)
-            url   = link_tag.get_text(strip=True)
+
+            # Link extraction differs between Atom (YouTube) and RSS
+            if youtube:
+                link_tag = item.find('link')
+                url = link_tag.get('href', '').strip() if link_tag else ''
+            else:
+                link_tag = item.find('link')
+                url = link_tag.get_text(strip=True) if link_tag else ''
+
             if not title or not url:
                 continue
 
-            desc_tag = item.find('description') or item.find('content:encoded')
-            raw_desc = desc_tag.get_text(strip=True) if desc_tag else ''
-            summary  = BeautifulSoup(raw_desc, 'lxml').get_text(separator=' ')[:600].strip()
+            # Summary / description
+            if youtube:
+                media_desc = item.find('media:description')
+                raw_desc   = media_desc.get_text(strip=True) if media_desc else ''
+            else:
+                desc_tag = item.find('description') or item.find('content:encoded')
+                raw_desc = desc_tag.get_text(strip=True) if desc_tag else ''
+
+            summary = BeautifulSoup(raw_desc, 'lxml').get_text(separator=' ')[:600].strip()
 
             if not is_relevant(title, summary):
                 continue
 
-            content, page_image = fetch_full_content(url, verify=verify)
-            image_url    = extract_image(item, raw_desc) or page_image
+            # Content + image
+            if youtube:
+                content   = extract_youtube_content(item)
+                image_url = extract_youtube_thumbnail(item)
+            else:
+                content, page_image = fetch_full_content(url, verify=verify)
+                image_url = extract_image(item, raw_desc) or page_image
+
             published_at = parse_date(item)
 
             save_post(
@@ -399,7 +527,7 @@ def crawl_source(source):
                 published_at = published_at,
             )
             count += 1
-            time.sleep(0.5)
+            time.sleep(0.3 if youtube else 0.5)
 
         except Exception as e:
             log.error(f'  Error processing item from {name}: {e}')
@@ -409,7 +537,7 @@ def crawl_source(source):
 
 
 def run_blog_crawl():
-    log.info('═══ Blog crawl started ═══')
+    log.info('═══ Health & Fitness blog crawl started ═══')
     total = 0
 
     for source in SOURCES:
@@ -433,9 +561,9 @@ def run_blog_crawl():
                 synchronize_session=False
             )
             db.session.commit()
-            log.info('  Pruned old blog posts — keeping latest 500')
+            log.info('  Pruned old posts — keeping latest 500')
     except Exception as e:
         db.session.rollback()
         log.error(f'  Pruning error: {e}')
 
-    log.info(f'═══ Blog crawl done: {total} new posts ═══')
+    log.info(f'═══ Health & Fitness crawl done: {total} new posts ═══')
