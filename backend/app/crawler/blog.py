@@ -2,6 +2,7 @@ import re
 import time
 import logging
 import requests
+import urllib3
 import unicodedata
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -10,71 +11,137 @@ from bs4 import BeautifulSoup
 from app import db
 from app.models.blog_post import BlogPost
 
+# Suppress SSL warnings for sites with broken certs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 log = logging.getLogger(__name__)
 
 HEADERS = {
     'User-Agent': (
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/120.0.0.0 Safari/537.36'
-    )
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate',
+    'Connection': 'keep-alive',
+    'Referer': 'https://www.google.com/',
 }
 
 SOURCES = [
+    # ── Celebrity / Gossip ────────────────────────────────────────────
     {
         'name':     'Linda Ikeji Blog',
         'rss':      'https://www.lindaikejisblog.com/feeds/posts/default?alt=rss',
         'category': 'Celebrity',
-    },
-    {
-        'name':     'Pulse Nigeria',
-        'rss':      'https://www.pulse.ng/rss',
-        'category': 'General',
-    },
-    {
-        'name':     'Legit.ng',
-        'rss':      'https://www.legit.ng/rss/all.rss',
-        'category': 'General',
-    },
-    {
-        'name':     'BellaNaija',
-        'rss':      'https://www.bellanaija.com/feed/',
-        'category': 'Celebrity',
-    },
-    {
-        'name':     'TheCable Entertainment',
-        'rss':      'https://www.thecable.ng/category/lifestyle/entertainment/feed',
-        'category': 'Entertainment',
-    },
-    {
-        'name':     'Tooxclusive',
-        'rss':      'https://tooxclusive.com/feed/',
-        'category': 'Music',
-    },
-    {
-        'name':     'Vanguard Entertainment',
-        'rss':      'https://www.vanguardngr.com/entertainment/feed/',
-        'category': 'Entertainment',
-    },
-    {
-        'name':     'The Punch Entertainment',
-        'rss':      'https://punchng.com/category/entertainment/feed/',
-        'category': 'Entertainment',
-    },
-    {
-        'name':     'Naijaloaded',
-        'rss':      'https://naijaloaded.com.ng/feed',
-        'category': 'Music',
-    },
-    {
-        'name':     'NotJustOk',
-        'rss':      'https://www.notjustok.com/feed/',
-        'category': 'Music',
+        'verify':   True,
     },
     {
         'name':     'SDK Celebrities',
         'rss':      'https://www.stelladimokokorkus.com/feeds/posts/default?alt=rss',
         'category': 'Celebrity',
+        'verify':   True,
+    },
+    {
+        'name':     'BellaNaija',
+        'rss':      'https://www.bellanaija.com/feed/',
+        'category': 'Celebrity',
+        'verify':   False,   # SSL cert broken — skip verification
+    },
+    {
+        'name':     'SDK Blog',
+        'rss':      'https://www.instablog9ja.com/feed/',
+        'category': 'Celebrity',
+        'verify':   True,
+    },
+
+    # ── General Nigerian News ─────────────────────────────────────────
+    {
+        'name':     'Pulse Nigeria Entertainment',
+        'rss':      'https://www.pulse.ng/entertainment/rss',   # fixed: was /rss
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'Pulse Nigeria Lifestyle',
+        'rss':      'https://www.pulse.ng/lifestyle/rss',
+        'category': 'General',
+        'verify':   True,
+    },
+    {
+        'name':     'Legit.ng',
+        'rss':      'https://www.legit.ng/rss/all.rss',
+        'category': 'General',
+        'verify':   True,
+    },
+    {
+        'name':     'Guardian Nigeria Entertainment',
+        'rss':      'https://guardian.ng/category/art/entertainment/feed/',  # replaces thecable (403)
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'Daily Post Nigeria',
+        'rss':      'https://dailypost.ng/feed/',               # replaces Punch (404)
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'Vanguard Nigeria',
+        'rss':      'https://www.vanguardngr.com/feed/',        # fixed: top-level feed (was /entertainment/feed/ → 403)
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'Premium Times',
+        'rss':      'https://www.premiumtimesng.com/feed',
+        'category': 'General',
+        'verify':   True,
+    },
+    {
+        'name':     'The Punch',
+        'rss':      'https://punchng.com/feed/',                # fixed: top-level feed (was /category/entertainment/feed/ → 404)
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+    {
+        'name':     'TheCable',
+        'rss':      'https://www.thecable.ng/feed',             # fixed: top-level feed (was /category/lifestyle/entertainment/feed → 403)
+        'category': 'Entertainment',
+        'verify':   True,
+    },
+
+    # ── Music ─────────────────────────────────────────────────────────
+    {
+        'name':     'Tooxclusive',
+        'rss':      'https://tooxclusive.com/feed/',
+        'category': 'Music',
+        'verify':   True,
+    },
+    {
+        'name':     'NotJustOk',
+        'rss':      'https://www.notjustok.com/feed/',
+        'category': 'Music',
+        'verify':   True,
+    },
+    {
+        'name':     'TooXclusive',
+        'rss':      'https://www.tooXclusive.com/feed/',
+        'category': 'Music',
+        'verify':   True,
+    },
+    {
+        'name':     'Afrocharts',
+        'rss':      'https://afrocharts.com/feed/',             # replaces Naijaloaded (404)
+        'category': 'Music',
+        'verify':   True,
+    },
+    {
+        'name':     'Jaguda Music',
+        'rss':      'https://jaguda.com/feed/',
+        'category': 'Music',
+        'verify':   True,
     },
 ]
 
@@ -154,22 +221,29 @@ def parse_date(item_soup):
     return datetime.utcnow()
 
 
-def fetch_rss(url):
+def fetch_rss(url, verify=True):
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15)
+        res = requests.get(url, headers=HEADERS, timeout=15, verify=verify)
         if res.status_code != 200:
             log.warning(f'RSS fetch failed {res.status_code}: {url}')
             return None
         return res.text
+    except requests.exceptions.SSLError:
+        # Retry without SSL verification if cert is bad
+        if verify:
+            log.warning(f'SSL error for {url} — retrying with verify=False')
+            return fetch_rss(url, verify=False)
+        log.error(f'SSL error (verify=False also failed): {url}')
+        return None
     except Exception as e:
         log.error(f'RSS fetch error {url}: {e}')
         return None
 
 
-def fetch_full_content(url):
+def fetch_full_content(url, verify=True):
     """Fetch full article and return (clean_content, image_url)."""
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15)
+        res = requests.get(url, headers=HEADERS, timeout=15, verify=verify)
         if res.status_code != 200:
             return None, None
 
@@ -216,19 +290,13 @@ def fetch_full_content(url):
         for tag in article.find_all(['p', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol']):
             text = tag.get_text(strip=True)
 
-            # Skip short lines
             if len(text) < 40:
                 continue
-
-            # Skip adult content
             if any(kw in text.lower() for kw in ADULT_KEYWORDS):
                 continue
-
-            # Skip junk phrases
             if any(phrase in text.lower() for phrase in JUNK_PHRASES):
                 continue
 
-            # Build clean HTML
             if tag.name == 'p':
                 paragraphs.append(f'<p>{text}</p>')
             elif tag.name in ['h2', 'h3', 'h4']:
@@ -247,8 +315,14 @@ def fetch_full_content(url):
         content = '\n'.join(paragraphs)
         return (content if len(content) > 100 else None), image_url
 
+    except requests.exceptions.SSLError:
+        if verify:
+            log.warning(f'SSL error fetching article {url} — retrying with verify=False')
+            return fetch_full_content(url, verify=False)
+        log.error(f'SSL error (verify=False also failed) fetching article: {url}')
+        return None, None
     except Exception as e:
-        log.error(f'  Full content fetch error {url}: {e}')
+        log.error(f'Full content fetch error {url}: {e}')
         return None, None
 
 
@@ -292,9 +366,10 @@ def crawl_source(source):
     name     = source['name']
     rss_url  = source['rss']
     category = source['category']
+    verify   = source.get('verify', True)
 
     log.info(f'── Crawling: {name}')
-    xml = fetch_rss(rss_url)
+    xml = fetch_rss(rss_url, verify=verify)
     if not xml:
         return 0
 
@@ -323,7 +398,7 @@ def crawl_source(source):
             if not is_relevant(title, summary):
                 continue
 
-            content, page_image = fetch_full_content(url)
+            content, page_image = fetch_full_content(url, verify=verify)
             image_url = extract_image(item, raw_desc) or page_image
             published_at = parse_date(item)
 
