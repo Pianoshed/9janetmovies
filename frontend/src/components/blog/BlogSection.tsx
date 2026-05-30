@@ -74,6 +74,17 @@ export default function BlogSection() {
                 }}>
                     🗞️ Latest Entertainment Gist
                 </h2>
+
+                {/* ── NEW: View All link ── */}
+                <Link href="/blog" style={{
+                    fontSize: '12px',
+                    color: 'var(--red)',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                }}>
+                    View All →
+                </Link>
             </div>
 
             <div className="blog-grid">
