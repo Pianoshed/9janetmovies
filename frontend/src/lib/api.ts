@@ -28,7 +28,8 @@ export async function getMovies(page = 1, genre = ''): Promise<MoviesResponse> {
 
 export async function getAllSeries(): Promise<Series[]> {
     try {
-        return await fetchJSON<Series[]>(`${API}/series`) ?? []
+        const data = await fetchJSON<any>(`${API}/series`) ?? {}
+        return data?.series ?? data ?? []
     } catch (err) {
         console.error('getAllSeries error:', err)
         return []
