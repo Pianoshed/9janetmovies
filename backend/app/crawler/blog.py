@@ -30,201 +30,200 @@ HEADERS = {
     'Upgrade-Insecure-Requests': '1',
 }
 
-# ── All sources below are free, publicly available RSS feeds ──────────────────
+# ── All sources are free, publicly available RSS feeds ────────────────────────
 
 SOURCES = [
-    # ── Fitness & Exercise ────────────────────────────────────────────────
+    # ── Upcoming Movies & Trailers ────────────────────────────────────────
     {
-        'name':     'Nerd Fitness',
-        'rss':      'https://www.nerdfitness.com/blog/feed/',
-        'category': 'Fitness',
+        'name':     'Screen Rant',
+        'rss':      'https://screenrant.com/feed/',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Breaking Muscle',
-        'rss':      'https://breakingmuscle.com/feed/',
-        'category': 'Fitness',
+        'name':     'Coming Soon',
+        'rss':      'https://www.comingsoon.net/feed',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Girls Gone Strong',
-        'rss':      'https://www.girlsgonestrong.com/blog/feed/',
-        'category': 'Fitness',
+        'name':     'SlashFilm',
+        'rss':      'https://www.slashfilm.com/feed/',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'BarBend',
-        'rss':      'https://barbend.com/feed/',
-        'category': 'Fitness',
-        'verify':   True,
-    },
-
-    # ── Nutrition & Diet ─────────────────────────────────────────────────
-    {
-        'name':     'Precision Nutrition',
-        'rss':      'https://www.precisionnutrition.com/feed',
-        'category': 'Nutrition',
+        'name':     'MovieWeb',
+        'rss':      'https://movieweb.com/feed/',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Healthline Nutrition',
-        'rss':      'https://www.healthline.com/rss/nutrition',
-        'category': 'Nutrition',
+        'name':     'Collider',
+        'rss':      'https://collider.com/feed/',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Examine.com',
-        'rss':      'https://examine.com/feed/',
-        'category': 'Nutrition',
-        'verify':   True,
-    },
-    {
-        'name':     'Nom Nom Paleo',
-        'rss':      'https://nomnompaleo.com/feed',
-        'category': 'Nutrition',
+        'name':     'The Playlist',
+        'rss':      'https://theplaylist.net/feed/',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
 
-    # ── Mental Wellness & Mindfulness ─────────────────────────────────────
+    # ── Movie Reviews ─────────────────────────────────────────────────────
     {
-        'name':     'Mindful',
-        'rss':      'https://www.mindful.org/feed/',
-        'category': 'Mental Wellness',
+        'name':     'Roger Ebert',
+        'rss':      'https://www.rogerebert.com/feed',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Psychology Today Wellness',
-        'rss':      'https://www.psychologytoday.com/us/front/feed',
-        'category': 'Mental Wellness',
+        'name':     'Empire Online',
+        'rss':      'https://www.empireonline.com/movies/feed/',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Greater Good Science Center',
-        'rss':      'https://greatergood.berkeley.edu/feeds/all-articles.xml',
-        'category': 'Mental Wellness',
-        'verify':   True,
-    },
-
-    # ── Healthy Living & Lifestyle ────────────────────────────────────────
-    {
-        'name':     'Well+Good',
-        'rss':      'https://www.wellandgood.com/feed/',
-        'category': 'Lifestyle',
+        'name':     'Total Film',
+        'rss':      'https://www.gamesradar.com/film/rss/',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'MindBodyGreen',
-        'rss':      'https://www.mindbodygreen.com/rss.xml',
-        'category': 'Lifestyle',
+        'name':     'Hollywood Reporter',
+        'rss':      'https://www.hollywoodreporter.com/feed/',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Healthline',
-        'rss':      'https://www.healthline.com/rss/health-news',
-        'category': 'Lifestyle',
+        'name':     'IndieWire',
+        'rss':      'https://www.indiewire.com/feed/',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Medical News Today',
-        'rss':      'https://www.medicalnewstoday.com/rss',
-        'category': 'Lifestyle',
+        'name':     'Variety',
+        'rss':      'https://variety.com/feed/',
+        'category': 'Reviews',
         'verify':   True,
     },
 
-    # ── Weight Loss & Body Transformation ────────────────────────────────
+    # ── TV Series & Streaming ─────────────────────────────────────────────
     {
-        'name':     'Obesity Help',
-        'rss':      'https://www.obesityhelp.com/articles/rss/',
-        'category': 'Weight Loss',
+        'name':     'TV Line',
+        'rss':      'https://tvline.com/feed/',
+        'category': 'TV & Streaming',
         'verify':   True,
     },
     {
-        'name':     'Lose It! Blog',
-        'rss':      'https://blog.loseit.com/feed/',
-        'category': 'Weight Loss',
+        'name':     'Den of Geek',
+        'rss':      'https://www.denofgeek.com/feed/',
+        'category': 'TV & Streaming',
+        'verify':   True,
+    },
+    {
+        'name':     'Decider',
+        'rss':      'https://decider.com/feed/',
+        'category': 'TV & Streaming',
+        'verify':   True,
+    },
+    {
+        'name':     'What\'s on Netflix',
+        'rss':      'https://www.whats-on-netflix.com/feed/',
+        'category': 'TV & Streaming',
         'verify':   True,
     },
 
-    # ── Sleep & Recovery ─────────────────────────────────────────────────
+    # ── Box Office & Industry News ────────────────────────────────────────
     {
-        'name':     'Sleep Foundation',
-        'rss':      'https://www.sleepfoundation.org/feed',
-        'category': 'Recovery',
+        'name':     'Deadline Hollywood',
+        'rss':      'https://deadline.com/feed/',
+        'category': 'Box Office',
+        'verify':   True,
+    },
+    {
+        'name':     'The Numbers',
+        'rss':      'https://www.the-numbers.com/rss/news.php',
+        'category': 'Box Office',
         'verify':   True,
     },
 
-    # ── YouTube Channels (via RSS — no API key needed) ────────────────────
-    # YouTube exposes free, public RSS feeds for every channel.
+    # ── YouTube Channels (free public RSS — no API key needed) ────────────
     # Format: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
     {
-        'name':     'Jeff Nippard (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC68TLK0mAEzUyHx5x5k-S1Q',
-        'category': 'Fitness',
+        'name':     'Rotten Tomatoes (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCi8e0iOVk1fEOogdfu4YgfA',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Athlean-X (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCe0TLA0EsQbE-MjuHXevran',
-        'category': 'Fitness',
+        'name':     'Screen Junkies (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCOpcACMWblDls9Z6GERVi1A',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Doctor Mike (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC0QHWhjbe5fGJEPz3sZqH6A',
-        'category': 'Lifestyle',
+        'name':     'CinemaBlend (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCnUYZLuoy1rq1aVMwx4aTzw',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Thomas DeLauer – Nutrition (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC70SrI3VkT1MXALRtf0pcHg',
-        'category': 'Nutrition',
+        'name':     'IGN Movies (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCKy1dAqELo0zrOtPkf0eTMw',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Yoga With Adriene (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCFKE7WVJfvaHW5q283SxchA',
-        'category': 'Mental Wellness',
+        'name':     'Collider Videos (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UC9eIq7PwD0WA-2B_Sp7xGdw',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Autumn Bates – Nutrition (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCnLRo9llNnMiRRIxqm3F0Eg',
-        'category': 'Nutrition',
+        'name':     'Beyond The Trailer (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCy7IKi4JFR9HMiTOHBvTVdQ',
+        'category': 'Upcoming Movies',
         'verify':   True,
     },
     {
-        'name':     'Chloe Ting – Fitness (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCCgLoMYIyP0U56dEhEL1wXQ',
-        'category': 'Fitness',
+        'name':     'WatchMojo – Movies (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCaWd5_7JhbQBe4dknZhsHJg',
+        'category': 'Reviews',
         'verify':   True,
     },
     {
-        'name':     'Bob & Brad – Physical Therapy (YouTube)',
-        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCmTe0LsfEbpkDpgrxKAWbRA',
-        'category': 'Recovery',
+        'name':     'Chris Stuckmann (YouTube)',
+        'rss':      'https://www.youtube.com/feeds/videos.xml?channel_id=UCFRrqaGNs5yR-bfOQ_MKEhA',
+        'category': 'Reviews',
         'verify':   True,
     },
 ]
 
 RELEVANT_KEYWORDS = [
-    # Fitness
-    'workout', 'exercise', 'training', 'gym', 'muscle', 'strength',
-    'cardio', 'hiit', 'yoga', 'pilates', 'stretching', 'flexibility',
-    'running', 'cycling', 'swimming', 'crossfit', 'bodybuilding',
-    # Nutrition
-    'nutrition', 'diet', 'protein', 'calories', 'carbs', 'fat', 'fibre',
-    'meal', 'recipe', 'eat', 'food', 'supplement', 'vitamin', 'mineral',
-    'intermittent fasting', 'keto', 'paleo', 'vegan', 'plant-based',
-    # Health
-    'health', 'wellness', 'weight loss', 'fat loss', 'metabolism',
-    'blood pressure', 'heart', 'immune', 'inflammation', 'gut',
-    'sleep', 'recovery', 'rest', 'hydration', 'water',
-    # Mental
-    'mental health', 'mindfulness', 'meditation', 'stress', 'anxiety',
-    'mood', 'depression', 'therapy', 'self-care', 'habit', 'motivation',
-    # Lifestyle
-    'lifestyle', 'healthy living', 'body', 'transformation', 'challenge',
-    'tip', 'guide', 'routine', 'plan',
+    # Upcoming / trailers
+    'trailer', 'teaser', 'release date', 'upcoming', 'first look',
+    'official trailer', 'sneak peek', 'preview', 'clip', 'featurette',
+    'announced', 'greenlit', 'casting', 'production', 'filming',
+    # Reviews
+    'review', 'rated', 'rating', 'score', 'stars', 'verdict',
+    'worth watching', 'disappoints', 'masterpiece', 'must watch',
+    'critic', 'audience', 'plot', 'ending explained',
+    # General movie/TV
+    'movie', 'film', 'cinema', 'theater', 'box office', 'sequel',
+    'prequel', 'reboot', 'remake', 'franchise', 'blockbuster',
+    'director', 'actor', 'actress', 'cast', 'screenplay', 'script',
+    'series', 'season', 'episode', 'finale', 'premiere', 'show',
+    # Streaming
+    'netflix', 'amazon prime', 'disney+', 'hbo max', 'apple tv',
+    'hulu', 'peacock', 'paramount+', 'streaming', 'now streaming',
+    # Awards
+    'oscar', 'academy award', 'golden globe', 'bafta', 'cannes',
+    'sundance', 'award', 'nomination', 'winner',
+    # Genres
+    'action', 'comedy', 'thriller', 'horror', 'sci-fi', 'drama',
+    'documentary', 'animation', 'superhero', 'marvel', 'dc',
 ]
 
 ADULT_KEYWORDS = [
@@ -280,11 +279,9 @@ def extract_image(item_soup, entry_text=''):
 
 
 def extract_youtube_thumbnail(item_soup):
-    """Extract YouTube video thumbnail from the RSS feed's media group."""
     thumb = item_soup.find('media:thumbnail')
     if thumb and thumb.get('url', '').startswith('http'):
         return thumb['url']
-    # Fallback: build from video ID
     video_id_tag = item_soup.find('yt:videoId')
     if video_id_tag:
         vid = video_id_tag.get_text(strip=True)
@@ -293,7 +290,6 @@ def extract_youtube_thumbnail(item_soup):
 
 
 def extract_youtube_content(item_soup):
-    """Build an embeddable iframe block for YouTube entries."""
     video_id_tag = item_soup.find('yt:videoId')
     if not video_id_tag:
         return None
@@ -471,7 +467,6 @@ def crawl_source(source):
         return 0
 
     soup  = BeautifulSoup(xml, 'xml')
-    # YouTube Atom feeds use <entry>, standard RSS uses <item>
     items = soup.find_all('entry') if youtube else soup.find_all('item')
     count = 0
 
@@ -482,7 +477,6 @@ def crawl_source(source):
                 continue
             title = title_tag.get_text(strip=True)
 
-            # Link extraction differs between Atom (YouTube) and RSS
             if youtube:
                 link_tag = item.find('link')
                 url = link_tag.get('href', '').strip() if link_tag else ''
@@ -493,7 +487,6 @@ def crawl_source(source):
             if not title or not url:
                 continue
 
-            # Summary / description
             if youtube:
                 media_desc = item.find('media:description')
                 raw_desc   = media_desc.get_text(strip=True) if media_desc else ''
@@ -506,7 +499,6 @@ def crawl_source(source):
             if not is_relevant(title, summary):
                 continue
 
-            # Content + image
             if youtube:
                 content   = extract_youtube_content(item)
                 image_url = extract_youtube_thumbnail(item)
@@ -537,7 +529,7 @@ def crawl_source(source):
 
 
 def run_blog_crawl():
-    log.info('═══ Health & Fitness blog crawl started ═══')
+    log.info('═══ Movies & Reviews crawl started ═══')
     total = 0
 
     for source in SOURCES:
@@ -566,4 +558,4 @@ def run_blog_crawl():
         db.session.rollback()
         log.error(f'  Pruning error: {e}')
 
-    log.info(f'═══ Health & Fitness crawl done: {total} new posts ═══')
+    log.info(f'═══ Movies & Reviews crawl done: {total} new posts ═══')
