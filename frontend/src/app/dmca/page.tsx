@@ -24,7 +24,7 @@ export default function DMCAPage() {
                     If you believe that content linked on this site infringes your copyright, please contact the respective file hosting service directly to request removal.
                 </p>
                 <p style={{ fontSize: '14px', lineHeight: 1.8, color: '#333' }}>
-                    For further inquiries, contact us at: <strong>admin@9janetmovies.com</strong>
+                    For further inquiries, contact us at: <strong>9janetmovies@9janetmovies.com.ng</strong>
                 </p>
             </div>
         </div>

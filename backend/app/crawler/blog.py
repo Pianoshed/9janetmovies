@@ -51,6 +51,31 @@ SOURCES = [
         'rss':      'https://tooxclusive.com/feed/',
         'category': 'Music',
     },
+    {
+        'name':     'Vanguard Entertainment',
+        'rss':      'https://www.vanguardngr.com/entertainment/feed/',
+        'category': 'Entertainment',
+    },
+    {
+        'name':     'The Punch Entertainment',
+        'rss':      'https://punchng.com/category/entertainment/feed/',
+        'category': 'Entertainment',
+    },
+    {
+        'name':     'Naijaloaded',
+        'rss':      'https://naijaloaded.com.ng/feed',
+        'category': 'Music',
+    },
+    {
+        'name':     'NotJustOk',
+        'rss':      'https://www.notjustok.com/feed/',
+        'category': 'Music',
+    },
+    {
+        'name':     'SDK Celebrities',
+        'rss':      'https://www.stelladimokokorkus.com/feeds/posts/default?alt=rss',
+        'category': 'Celebrity',
+    },
 ]
 
 RELEVANT_KEYWORDS = [
@@ -66,10 +91,21 @@ ADULT_KEYWORDS = [
     'hardcore', 'onlyfans', 'adult content',
 ]
 
-# Tags to strip from article content
 JUNK_TAGS = [
     'script', 'style', 'iframe', 'form', 'nav', 'footer',
     'header', 'aside', 'button', 'input', 'select',
+]
+
+JUNK_PHRASES = [
+    'read also', 'follow us', 'follow legit', 'find it fast',
+    'subscribe', 'newsletter', 'breaking news to viral',
+    'click here', 'source:', 'tags:', 'hot:', 'authors:',
+    'contact:', 'compiled some', 'read the comments',
+    'commented:', ' said:', 'reactions that trailed',
+    'legit.ng reported', 'legit.ng also', 'also reported',
+    'share on', 'send this', 'whatsapp', 'copy link',
+    'from breaking news', 'follow pulse', 'follow bellanaija',
+    'advertisement', 'sponsored', 'promo code',
 ]
 
 
@@ -131,10 +167,7 @@ def fetch_rss(url):
 
 
 def fetch_full_content(url):
-    """
-    Fetch the full article page and extract clean readable content.
-    Returns (content_html, image_url) tuple.
-    """
+    """Fetch full article and return (clean_content, image_url)."""
     try:
         res = requests.get(url, headers=HEADERS, timeout=15)
         if res.status_code != 200:
@@ -142,13 +175,13 @@ def fetch_full_content(url):
 
         soup = BeautifulSoup(res.text, 'lxml')
 
-        # Try to get og:image first
+        # Get og:image
         image_url = None
         og_img = soup.find('meta', property='og:image')
         if og_img and og_img.get('content', '').startswith('http'):
             image_url = og_img['content']
 
-        # Find the main article content
+        # Find article body
         article = None
         for selector in [
             'article',
@@ -171,36 +204,31 @@ def fetch_full_content(url):
         for tag in article.find_all(JUNK_TAGS):
             tag.decompose()
 
-        # Remove social share / subscribe divs
+        # Remove social/share/subscribe divs
         for el in article.find_all(class_=re.compile(
             r'share|social|subscribe|newsletter|related|comment|ad|widget|sidebar',
             re.IGNORECASE
         )):
             el.decompose()
 
-        # Extract clean paragraphs as HTML
+        # Extract clean paragraphs
         paragraphs = []
         for tag in article.find_all(['p', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol']):
             text = tag.get_text(strip=True)
-            if len(text) < 20:
-                continue
-if any(kw in text.lower() for kw in ADULT_KEYWORDS):
-    continue
 
-JUNK_PHRASES = [
-    'read also', 'follow us', 'follow legit', 'find it fast',
-    'subscribe', 'newsletter', 'breaking news to viral',
-    'click here', 'source:', 'tags:', 'hot:', 'authors:',
-    'contact:', 'compiled some', 'read the comments',
-    'commented:', ' said:', 'reactions that trailed',
-    'legit.ng reported', 'legit.ng also', 'also reported',
-    'share on', 'send this', 'whatsapp', 'copy link',
-]
-        if any(phrase in text.lower() for phrase in JUNK_PHRASES):
-            continue
-        if len(text) < 40:
-            continue
-            # Keep as simple HTML
+            # Skip short lines
+            if len(text) < 40:
+                continue
+
+            # Skip adult content
+            if any(kw in text.lower() for kw in ADULT_KEYWORDS):
+                continue
+
+            # Skip junk phrases
+            if any(phrase in text.lower() for phrase in JUNK_PHRASES):
+                continue
+
+            # Build clean HTML
             if tag.name == 'p':
                 paragraphs.append(f'<p>{text}</p>')
             elif tag.name in ['h2', 'h3', 'h4']:
@@ -217,7 +245,7 @@ JUNK_PHRASES = [
                     paragraphs.append(f'<{tag.name}>{items}</{tag.name}>')
 
         content = '\n'.join(paragraphs)
-        return content if len(content) > 100 else None, image_url
+        return (content if len(content) > 100 else None), image_url
 
     except Exception as e:
         log.error(f'  Full content fetch error {url}: {e}')
@@ -235,7 +263,6 @@ def save_post(title, url, summary, content, image_url, source_name, category, pu
         ).first()
 
         if existing:
-            # Update content if it was missing
             if not existing.content and content:
                 existing.content = content
                 db.session.commit()
@@ -275,7 +302,7 @@ def crawl_source(source):
     items = soup.find_all('item')
     count = 0
 
-    for item in items[:30]:
+    for item in items[:50]:
         try:
             title_tag = item.find('title')
             link_tag  = item.find('link')
@@ -296,7 +323,6 @@ def crawl_source(source):
             if not is_relevant(title, summary):
                 continue
 
-            # Fetch full article content from the page
             content, page_image = fetch_full_content(url)
             image_url = extract_image(item, raw_desc) or page_image
             published_at = parse_date(item)
@@ -312,7 +338,7 @@ def crawl_source(source):
                 published_at = published_at,
             )
             count += 1
-            time.sleep(0.5)  # slightly longer delay since we're fetching full pages
+            time.sleep(0.5)
 
         except Exception as e:
             log.error(f'  Error processing item from {name}: {e}')
@@ -334,19 +360,19 @@ def run_blog_crawl():
             log.error(f'  Source failed {source["name"]}: {e}')
         time.sleep(1)
 
-    # Keep only the latest 200 posts
+    # Keep only the latest 500 posts
     try:
         latest_ids = [
             r.id for r in BlogPost.query
             .order_by(BlogPost.published_at.desc())
-            .limit(200).all()
+            .limit(500).all()
         ]
         if latest_ids:
             BlogPost.query.filter(~BlogPost.id.in_(latest_ids)).delete(
                 synchronize_session=False
             )
             db.session.commit()
-            log.info('  Pruned old blog posts — keeping latest 200')
+            log.info('  Pruned old blog posts — keeping latest 500')
     except Exception as e:
         db.session.rollback()
         log.error(f'  Pruning error: {e}')

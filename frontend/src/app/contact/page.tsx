@@ -29,7 +29,7 @@ export default function ContactPage() {
                     marginBottom: '16px',
                 }}>
                     <p style={{ fontSize: '14px', color: '#333', marginBottom: '8px' }}>
-                        📧 <strong>Email:</strong> admin@9janetmovies.com
+                        📧 <strong>Email:</strong> 9janetmovies@9janetmovies.com.ng
                     </p>
                     <p style={{ fontSize: '14px', color: '#333' }}>
                         ⏱ We typically respond within 24–48 hours.
