@@ -94,3 +94,24 @@ def trigger_blog_crawl():
     thread.start()
 
     return jsonify({'status': 'Blog crawl started'}), 200
+
+@crawler_bp.route('/api/crawl/dldownload', methods=['POST'])
+def trigger_dldownload_crawl():
+    token = request.headers.get('X-Crawler-Token')
+    if token != CRAWLER_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    from app.crawler.dldownload import run_dldownload_crawl
+    from flask import current_app
+
+    app = current_app._get_current_object()
+
+    def run():
+        with app.app_context():
+            run_dldownload_crawl(max_urls=550)
+
+    thread = threading.Thread(target=run)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'status': 'DLDownload crawl started'}), 200
