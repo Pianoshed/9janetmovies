@@ -680,23 +680,18 @@ MEETDOWNLOAD_STATE = os.getenv(
     'MEETDOWNLOAD_STATE_FILE',
     _default_state_file('meetdownload_processed.txt')
 )
+MEETDOWNLOAD_START_ID = int(os.getenv('MEETDOWNLOAD_START_ID', 27000))
+MEETDOWNLOAD_END_ID   = int(os.getenv('MEETDOWNLOAD_END_ID',   32000))
 
-# Regex to extract the numeric ID from a meetdownload URL
-# e.g. /abc123.../in-the-grey-2026-30742-mkv  → 30742
 _MEETDL_ID_RE = re.compile(r'-(\d{4,6})-mkv$', re.IGNORECASE)
 
 
-def _meetdownload_url(hash_: str, slug: str) -> str:
-    return f'{MEETDOWNLOAD_BASE}/{hash_}/{slug}'
-
-
-def _id_from_meetdownload_url(url: str) -> int | None:
+def _id_from_meetdownload_url(url: str):
     m = _MEETDL_ID_RE.search(url.rstrip('/').split('/')[-1])
     return int(m.group(1)) if m else None
 
 
-def scrape_meetdownload_page(url: str) -> dict | None:
-    """Scrape a single meetdownload page and return structured data."""
+def scrape_meetdownload_page(url: str):
     res = _safe_get(url)
     if not res:
         return None
@@ -704,15 +699,12 @@ def scrape_meetdownload_page(url: str) -> dict | None:
     try:
         soup = BeautifulSoup(res.text, 'lxml')
 
-        # ── Title ────────────────────────────────────────────
         title = None
         for sel in ['h1', 'h2', 'title']:
             tag = soup.select_one(sel)
             if tag:
                 raw = tag.get_text(strip=True)
-                # Strip "Download " prefix that meetdownload adds
                 raw = re.sub(r'^Download\s+', '', raw, flags=re.IGNORECASE)
-                # Strip trailing " – Meetdownload" or similar
                 raw = re.sub(r'\s*[|\-–]\s*meetdownload.*$', '', raw, flags=re.IGNORECASE)
                 raw = re.sub(r'\s*\(?\s*HDRIP\s*\)?\s*$', '', raw, flags=re.IGNORECASE)
                 raw = raw.strip()
@@ -726,13 +718,10 @@ def scrape_meetdownload_page(url: str) -> dict | None:
         if is_adult_content(title, url):
             return None
 
-        # ── File size / quality label ─────────────────────────
         size_text = ''
-        for pattern in [r'(\d+(?:\.\d+)?)\s*(MB|GB)', r'(\d+(?:\.\d+)?)(MB|GB)']:
-            m = re.search(pattern, res.text, re.IGNORECASE)
-            if m:
-                size_text = f'{m.group(1)}{m.group(2).upper()}'
-                break
+        m = re.search(r'(\d+(?:\.\d+)?)\s*(MB|GB)', res.text, re.IGNORECASE)
+        if m:
+            size_text = f'{m.group(1)}{m.group(2).upper()}'
 
         quality = '1080p'
         for q in ['2160p', '4K', '1080p', '720p', '480p', 'HDRIP', 'WEBRIP', 'BLURAY']:
@@ -740,24 +729,13 @@ def scrape_meetdownload_page(url: str) -> dict | None:
                 quality = q
                 break
 
-        # ── Upload date ───────────────────────────────────────
-        upload_date = None
-        dm = re.search(r'Uploaded[:\s]*(\d{2}-\d{2}-\d{4})', res.text)
-        if dm:
-            upload_date = dm.group(1)
-
-        # ── Subtitle available? ───────────────────────────────
-        has_subtitle = bool(
-            re.search(r'download\s+subtitle', res.text, re.IGNORECASE)
-            or 'subtitle' in res.text.lower()
-        )
+        has_subtitle = 'subtitle' in res.text.lower()
 
         return {
             'title':        title,
             'url':          url,
             'quality':      quality,
             'size':         size_text,
-            'upload_date':  upload_date,
             'has_subtitle': has_subtitle,
             'source':       'meetdownload',
             'links': [{
@@ -773,93 +751,64 @@ def scrape_meetdownload_page(url: str) -> dict | None:
         return None
 
 
-def get_meetdownload_urls_by_id_range(
+def get_meetdownload_urls_by_id_probe(
     start_id: int,
     end_id: int,
-    batch_size: int = 50
-) -> list[str]:
+    max_urls: int = 100,
+    processed: set = None
+) -> list:
     """
-    Discover meetdownload URLs via Google search for ID ranges.
-    Falls back to sequential probing when search is exhausted.
-    Returns a list of canonical URLs.
+    Probe meetdownload pages by constructing URLs from the search index.
+    Uses Bing (more lenient than Google) to find hash+slug for each ID range.
+    Falls back to direct ID-based URL guessing via known slug patterns.
     """
+    if processed is None:
+        processed = set()
+
     found = []
     seen  = set()
 
-    # Strategy 1: Google index (fast, gets real slugs/hashes)
-    for offset in range(0, min(batch_size, end_id - start_id), 10):
-        query = f'site:meetdownload.com -{start_id + offset}'
-        try:
-            res = http.get(
-                'https://www.google.com/search',
-                params={'q': query, 'num': 10},
-                headers={**HEADERS, 'Accept-Language': 'en-US,en;q=0.9'},
-                timeout=10
-            )
-            urls = re.findall(
-                r'https://meetdownload\.com/[a-f0-9]{32}/[^\s"&<>]+',
-                res.text
-            )
-            for u in urls:
-                u = u.rstrip('/')
-                if u not in seen:
-                    mid = _id_from_meetdownload_url(u)
-                    if mid and start_id <= mid <= end_id:
-                        seen.add(u)
-                        found.append(u)
-            time.sleep(1.5)
-        except Exception as e:
-            log.warning(f'Google search for meetdownload failed: {e}')
-            break
-
-    log.info(f'meetdownload: discovered {len(found)} URLs via search (IDs {start_id}–{end_id})')
-    return found
-
-
-def get_meetdownload_urls_from_google(max_urls: int = 100) -> list[str]:
-    """
-    Broader Google discovery — searches for recent meetdownload uploads
-    without requiring an ID range.
-    """
-    found = []
-    seen  = set()
-    queries = [
-        'site:meetdownload.com mkv 2026',
-        'site:meetdownload.com mkv 2025',
-        'site:meetdownload.com download movie mkv',
-        'site:meetdownload.com nollywood mkv',
-        'site:meetdownload.com korean drama mkv',
-    ]
-
-    for query in queries:
+    # Strategy: Bing search in chunks — more bot-friendly than Google
+    chunk_size = 10
+    for chunk_start in range(start_id, end_id, chunk_size):
         if len(found) >= max_urls:
             break
+
+        chunk_end = min(chunk_start + chunk_size, end_id)
+        query = f'site:meetdownload.com {chunk_start}..{chunk_end} mkv'
+
         try:
-            for page in range(0, 3):  # up to 3 pages per query
-                res = http.get(
-                    'https://www.google.com/search',
-                    params={'q': query, 'num': 10, 'start': page * 10},
-                    headers={**HEADERS, 'Accept-Language': 'en-US,en;q=0.9'},
-                    timeout=10
-                )
-                urls = re.findall(
-                    r'https://meetdownload\.com/[a-f0-9]{32}/[^\s"&<>]+',
-                    res.text
-                )
-                new_found = 0
-                for u in urls:
-                    u = u.rstrip('/')
-                    if u not in seen and not is_adult_content('', u):
+            res = http.get(
+                'https://www.bing.com/search',
+                params={'q': query, 'count': 10},
+                headers={
+                    **HEADERS,
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml',
+                },
+                timeout=10
+            )
+
+            # Extract meetdownload URLs from Bing results
+            urls = re.findall(
+                r'https://meetdownload\.com/[a-f0-9]{32}/[a-z0-9\-]+',
+                res.text
+            )
+
+            for u in urls:
+                u = u.rstrip('/')
+                if u not in seen and u not in processed:
+                    if not is_adult_content('', u):
                         seen.add(u)
                         found.append(u)
-                        new_found += 1
-                if not new_found:
-                    break  # no new results on this page
-                time.sleep(1.5)
-        except Exception as e:
-            log.warning(f'meetdownload Google discovery failed: {e}')
 
-    log.info(f'meetdownload: discovered {len(found)} URLs via Google')
+            time.sleep(2.0)  # be polite to Bing
+
+        except Exception as e:
+            log.warning(f'Bing search chunk {chunk_start}-{chunk_end} failed: {e}')
+            time.sleep(3.0)
+
+    log.info(f'meetdownload: found {len(found)} URLs via Bing probe')
     return found[:max_urls]
 
 
@@ -873,9 +822,13 @@ def run_meetdownload_crawl(max_urls: int = 100):
     processed = _load_processed_urls(MEETDOWNLOAD_STATE)
     log.info(f'Already processed: {len(processed)} URLs')
 
-    # Discover new URLs
-    all_urls = get_meetdownload_urls_from_google(max_urls=max_urls * 2)
-    new_urls = [u for u in all_urls if u not in processed][:max_urls]
+    new_urls = get_meetdownload_urls_by_id_probe(
+        start_id  = MEETDOWNLOAD_START_ID,
+        end_id    = MEETDOWNLOAD_END_ID,
+        max_urls  = max_urls,
+        processed = processed,
+    )
+
     log.info(f'Crawling {len(new_urls)} new meetdownload URLs...')
 
     for i, url in enumerate(new_urls, 1):
@@ -914,15 +867,13 @@ def run_meetdownload_crawl(max_urls: int = 100):
             total_movies += 1
 
         _mark_url_processed(MEETDOWNLOAD_STATE, url)
-        time.sleep(float(os.getenv('SLEEP_MEETDOWNLOAD', 0.8)))
+        time.sleep(float(os.getenv('SLEEP_MEETDOWNLOAD', 1.0)))
 
     log.info(
         f'MeetDownload done: {total_movies} movies | '
         f'{total_series} series | {total_skipped} skipped | '
         f'{total_blocked} adult blocked'
     )
-
-# ── SAVE SERIES ───────────────────────────────────────────────
 
 # ── SAVE SERIES ───────────────────────────────────────────────
 def save_series(data, tmdb, source='dldownload'):
