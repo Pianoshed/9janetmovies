@@ -1065,6 +1065,8 @@ def _run_sitemap_crawl(
                 title = clean_movie_title(page_data['title'])
             if page_data.get('poster'):
                 poster = page_data['poster']
+            if page_data.get('description'):
+                entry['description'] = page_data['description']
             time.sleep(sleep_page)
 
         if is_adult_content(title, entry['url']):
@@ -1266,3 +1268,103 @@ def run_crawl(
                 log.error(f'Crawl thread failed: {exc}')
 
     log.info('═══ All crawls complete ═══')
+
+
+# ══════════════════════════════════════════════════════════════
+# BACKFILL: fill missing descriptions & posters via TMDB
+# ══════════════════════════════════════════════════════════════
+
+def backfill_descriptions(batch_size=500):
+    """
+    One-time fix: finds all movies/series with empty description
+    (or missing poster) and re-queries TMDB to fill them in.
+    Call via: POST /api/crawl/backfill
+    """
+    from app.models.series import Series
+
+    log.info('═══ Backfill descriptions ═══')
+    updated_movies  = 0
+    updated_series  = 0
+    skipped         = 0
+
+    # ── Movies ────────────────────────────────────────────────
+    movies = Movie.query.filter(
+        (Movie.description == None) | (Movie.description == '')
+    ).limit(batch_size).all()
+
+    log.info(f'Movies needing description: {len(movies)}')
+
+    for movie in movies:
+        tmdb = tmdb_search(
+            clean_title_for_search(movie.title),
+            year=movie.year,
+            prefer_tv=False
+        )
+        if not tmdb:
+            tmdb = tmdb_search(clean_title_for_search(movie.title), prefer_tv=True)
+
+        if tmdb and (tmdb.get('description') or tmdb.get('poster')):
+            changed = False
+            if tmdb.get('description') and not movie.description:
+                movie.description = tmdb['description']
+                changed = True
+            if tmdb.get('poster') and not movie.poster_url:
+                movie.poster_url = tmdb['poster']
+                changed = True
+            if changed:
+                try:
+                    db.session.commit()
+                    updated_movies += 1
+                    log.info(f'  ✓ Movie updated: {movie.title}')
+                except Exception as e:
+                    db.session.rollback()
+                    log.error(f'  DB error for movie "{movie.title}": {e}')
+            else:
+                skipped += 1
+        else:
+            skipped += 1
+
+        time.sleep(0.1)  # respect TMDB rate limit
+
+    # ── Series ────────────────────────────────────────────────
+    all_series = Series.query.filter(
+        (Series.description == None) | (Series.description == '')
+    ).limit(batch_size).all()
+
+    log.info(f'Series needing description: {len(all_series)}')
+
+    for s in all_series:
+        tmdb = tmdb_search(
+            clean_title_for_search(s.title),
+            prefer_tv=True
+        )
+        if not tmdb:
+            tmdb = tmdb_search(clean_title_for_search(s.title), prefer_tv=False)
+
+        if tmdb and (tmdb.get('description') or tmdb.get('poster')):
+            changed = False
+            if tmdb.get('description') and not s.description:
+                s.description = tmdb['description']
+                changed = True
+            if tmdb.get('poster') and not s.poster_url:
+                s.poster_url = tmdb['poster']
+                changed = True
+            if changed:
+                try:
+                    db.session.commit()
+                    updated_series += 1
+                    log.info(f'  ✓ Series updated: {s.title}')
+                except Exception as e:
+                    db.session.rollback()
+                    log.error(f'  DB error for series "{s.title}": {e}')
+            else:
+                skipped += 1
+        else:
+            skipped += 1
+
+        time.sleep(0.1)
+
+    log.info(
+        f'Backfill done: {updated_movies} movies updated | '
+        f'{updated_series} series updated | {skipped} skipped'
+    )

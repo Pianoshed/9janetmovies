@@ -163,3 +163,26 @@ def trigger_blog_crawl():
     thread.start()
 
     return jsonify({'status': 'Blog crawl started'}), 200
+
+# Add this route to your existing crawler.py (in crawler_bp routes)
+
+@crawler_bp.route('/api/crawl/backfill', methods=['POST'])
+def trigger_backfill():
+    token = request.headers.get('X-Crawler-Token')
+    if token != CRAWLER_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    from app.crawler.dldownload import backfill_descriptions
+    from flask import current_app
+
+    app = current_app._get_current_object()
+
+    def run():
+        with app.app_context():
+            backfill_descriptions(batch_size=500)
+
+    thread = threading.Thread(target=run)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'status': 'Backfill started — filling empty descriptions from TMDB'}), 200
