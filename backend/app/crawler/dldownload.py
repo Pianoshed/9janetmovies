@@ -7,6 +7,7 @@ from app.models.movie import Movie
 from app.models.series import Series
 from app.models.episode import Episode
 from app.models.download_link import DownloadLink
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 import re
 import time
 import logging
@@ -70,6 +71,21 @@ HEADERS = {
     )
 }
 
+# ── ANTI-403 HEADERS (for HDMovies4u and other strict sites) ─
+BROWSER_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Cache-Control': 'max-age=0',
+}
+
 # ── ADULT CONTENT FILTER ──────────────────────────────────────
 ADULT_KEYWORDS = [
     'xxx', 'porn', 'pornography', 'adult', 'erotic', 'erotica',
@@ -114,6 +130,38 @@ def _make_session():
     return session
 
 http = _make_session()
+
+# ── HDMOVIES4U DEDICATED SESSION (anti-403) ───────────────────
+def _make_hdmovies4u_session():
+    """
+    Session that primes cookies by visiting the homepage first,
+    then uses full browser headers to avoid 403s on sitemaps/pages.
+    """
+    session = _make_session()
+    session.headers.update(BROWSER_HEADERS)
+    try:
+        session.headers.update({'Referer': 'https://hdmovies4u.in/'})
+        res = session.get('https://hdmovies4u.in/', timeout=15)
+        log.info(f'HDMovies4u cookie prime: HTTP {res.status_code}')
+    except Exception as e:
+        log.warning(f'HDMovies4u cookie prime failed (non-fatal): {e}')
+    return session
+
+_hdmovies4u_session = None
+_hdmovies4u_session_lock = threading.Lock()
+
+def _get_hdmovies4u_session():
+    global _hdmovies4u_session
+    with _hdmovies4u_session_lock:
+        if _hdmovies4u_session is None:
+            _hdmovies4u_session = _make_hdmovies4u_session()
+    return _hdmovies4u_session
+
+def _reset_hdmovies4u_session():
+    """Call this if the session starts getting 403s again."""
+    global _hdmovies4u_session
+    with _hdmovies4u_session_lock:
+        _hdmovies4u_session = None
 
 # ── GENRE MAP ────────────────────────────────────────────────
 GENRE_MAP = {
@@ -434,14 +482,43 @@ def tmdb_search(title, year=None, prefer_tv=False):
         log.error(f'TMDB error for "{title}": {e}')
         return None
 
-# ── FETCH HELPER ──────────────────────────────────────────────
-def _safe_get(url, timeout=20):
+# ── FETCH HELPERS ─────────────────────────────────────────────
+def _safe_get(url, timeout=20, session=None):
+    """Generic GET. Pass a custom session for sites needing special headers."""
+    requester = session or http
     try:
-        res = http.get(url, headers=HEADERS, timeout=timeout)
+        res = requester.get(url, headers=HEADERS, timeout=timeout)
         content_type = res.headers.get('Content-Type', '')
         if res.status_code != 200:
             log.warning(f'HTTP {res.status_code} for {url}')
             return None
+        if 'text' not in content_type and 'xml' not in content_type:
+            log.warning(f'Unexpected Content-Type "{content_type}" for {url}')
+            return None
+        return res
+    except Exception as e:
+        log.error(f'Request failed for {url}: {e}')
+        return None
+
+def _safe_get_hdmovies4u(url, timeout=20):
+    """
+    GET for HDMovies4u using the primed browser session.
+    Automatically resets and retries once on 403.
+    """
+    session = _get_hdmovies4u_session()
+    try:
+        res = session.get(url, timeout=timeout)
+        if res.status_code == 403:
+            log.warning(f'HDMovies4u 403 on {url} — resetting session and retrying')
+            _reset_hdmovies4u_session()
+            import time as _time
+            _time.sleep(2)
+            session = _get_hdmovies4u_session()
+            res = session.get(url, timeout=timeout)
+        if res.status_code != 200:
+            log.warning(f'HTTP {res.status_code} for {url}')
+            return None
+        content_type = res.headers.get('Content-Type', '')
         if 'text' not in content_type and 'xml' not in content_type:
             log.warning(f'Unexpected Content-Type "{content_type}" for {url}')
             return None
@@ -529,7 +606,7 @@ def get_dldownload_urls(max_urls=500):
         return []
 
 # ══════════════════════════════════════════════════════════════
-# SOURCE 2: THENKIRI.COM
+# SOURCE 2: THENKIRI.COM  /  SOURCE 3: HDMOVIES4U.IN
 # ══════════════════════════════════════════════════════════════
 
 def _extract_poster_from_url_tag(url_tag, page_url):
@@ -567,8 +644,15 @@ def _extract_poster_from_url_tag(url_tag, page_url):
     return None
 
 
-def _get_entries_from_sitemaps(sitemaps, max_urls, source_name):
-    """Shared sitemap-parsing logic for thenkiri and hdmovies4u."""
+def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
+    """
+    Shared sitemap-parsing logic for thenkiri and hdmovies4u.
+    fetch_fn: optional callable(url, timeout) → Response | None
+              defaults to _safe_get if not provided.
+    """
+    if fetch_fn is None:
+        fetch_fn = _safe_get
+
     entries   = []
     seen_urls = set()
 
@@ -576,7 +660,7 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name):
         if len(entries) >= max_urls:
             break
 
-        res = _safe_get(sitemap_url, timeout=15)
+        res = fetch_fn(sitemap_url, timeout=15)
         if not res:
             log.error(f'Could not fetch {source_name} sitemap: {sitemap_url}')
             time.sleep(SLEEP_SITEMAP)
@@ -638,17 +722,24 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
 
 def get_hdmovies4u_entries(max_urls=500, sitemaps=None):
+    """Uses the anti-403 browser session for HDMovies4u sitemaps."""
     if sitemaps is None:
         sitemaps = list(HDMOVIES4U_SITEMAPS)
-    return _get_entries_from_sitemaps(sitemaps, max_urls, 'hdmovies4u')
+    return _get_entries_from_sitemaps(
+        sitemaps, max_urls, 'hdmovies4u',
+        fetch_fn=_safe_get_hdmovies4u
+    )
 
 
-def _scrape_generic_wp_page(url, source_name):
+def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
     """
     Scrape a standard WordPress movie/post page.
     Returns dict with title, description, poster — or None if blocked/failed.
     """
-    res = _safe_get(url)
+    if fetch_fn is None:
+        fetch_fn = _safe_get
+
+    res = fetch_fn(url)
     if not res:
         return None
 
@@ -702,11 +793,11 @@ def scrape_thenkiri_page(url):
 
 
 def scrape_hdmovies4u_page(url):
-    return _scrape_generic_wp_page(url, 'hdmovies4u')
+    return _scrape_generic_wp_page(url, 'hdmovies4u', fetch_fn=_safe_get_hdmovies4u)
 
 
 # ══════════════════════════════════════════════════════════════
-# SHARED: SAVE SERIES / SAVE MOVIE
+# SHARED: SAVE SERIES / SAVE MOVIE  (upsert — no more 403 dupe errors)
 # ══════════════════════════════════════════════════════════════
 
 def save_series(data, tmdb, source='dldownload'):
@@ -732,31 +823,44 @@ def save_series(data, tmdb, source='dldownload'):
     )
 
     try:
-        series = Series.query.filter_by(slug=slug).first()
+        # ── Upsert series: insert or skip if slug already exists ──
+        stmt = pg_insert(Series).values(
+            title       = series_title,
+            slug        = slug,
+            poster_url  = poster,
+            genre       = genre,
+            description = description,
+        ).on_conflict_do_update(
+            index_elements=['slug'],
+            set_={
+                'poster_url':  db.case(
+                    (Series.poster_url == None, pg_insert(Series).excluded.poster_url),
+                    else_=Series.poster_url
+                ),
+                'description': db.case(
+                    (Series.description == None, pg_insert(Series).excluded.description),
+                    (Series.description == '', pg_insert(Series).excluded.description),
+                    else_=Series.description
+                ),
+            }
+        ).returning(Series.id, Series.title)
+
+        result = db.session.execute(stmt)
+        db.session.commit()
+        row = result.fetchone()
+        series_id = row[0]
+
+        # Reload the ORM object for episode association
+        series = Series.query.get(series_id)
         if not series:
-            series = Series(
-                title       = series_title,
-                slug        = slug,
-                poster_url  = poster,
-                genre       = genre,
-                description = description
-            )
-            db.session.add(series)
-            db.session.flush()
-            log.info(f'  New series: {series_title}')
-        else:
-            updated = False
-            if not series.poster_url and poster:
-                series.poster_url = poster
-                updated = True
-            if not series.description and description:
-                series.description = description
-                updated = True
-            if updated:
-                db.session.commit()
+            log.warning(f'  Could not reload series id={series_id}')
+            return
+
+        log.info(f'  Series upserted: {series_title}')
+
     except Exception as e:
         db.session.rollback()
-        log.error(f'  DB error creating/flushing series "{series_title}": {e}')
+        log.error(f'  DB error upserting series "{series_title}": {e}')
         return
 
     # ── Resolve episode URL and host ──────────────────────────
@@ -774,11 +878,6 @@ def save_series(data, tmdb, source='dldownload'):
         ep_url = data['url']
     else:
         log.warning(f'  No download link for series "{series_title}" — series saved without episode')
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            log.error(f'  DB commit error: {e}')
         return
 
     # ── Save episode ──────────────────────────────────────────
@@ -855,21 +954,8 @@ def save_movie(data, tmdb, source='dldownload'):
     }
 
     try:
-        existing = Movie.query.filter_by(slug=slug).first()
-        if existing:
-            updated = False
-            if not existing.poster_url and poster:
-                existing.poster_url  = poster
-                updated = True
-            if not existing.description and description:
-                existing.description = description
-                updated = True
-            if updated:
-                db.session.commit()
-            log.info(f'  Exists: {title}')
-            return
-
-        movie = Movie(
+        # ── Upsert movie: insert or update poster/description if missing ──
+        stmt = pg_insert(Movie).values(
             title       = title,
             slug        = slug,
             poster_url  = poster,
@@ -878,27 +964,47 @@ def save_movie(data, tmdb, source='dldownload'):
             description = description,
             badge       = 'New',
             is_trending = False,
-        )
-        db.session.add(movie)
-        db.session.flush()
+        ).on_conflict_do_update(
+            index_elements=['slug'],
+            set_={
+                'poster_url':  db.case(
+                    (Movie.poster_url == None, pg_insert(Movie).excluded.poster_url),
+                    else_=Movie.poster_url
+                ),
+                'description': db.case(
+                    (Movie.description == None, pg_insert(Movie).excluded.description),
+                    (Movie.description == '', pg_insert(Movie).excluded.description),
+                    else_=Movie.description
+                ),
+            }
+        ).returning(Movie.id, Movie.title)
 
-        if data.get('links'):
-            for link_data in data['links']:
+        result   = db.session.execute(stmt)
+        db.session.flush()
+        row      = result.fetchone()
+        movie_id = row[0]
+        is_new   = row[1] == title  # heuristic — will be True for both insert & update
+
+        # Only add download links if this is a brand-new record
+        existing_links = DownloadLink.query.filter_by(movie_id=movie_id).count()
+        if existing_links == 0:
+            if data.get('links'):
+                for link_data in data['links']:
+                    link = DownloadLink(
+                        movie_id = movie_id,
+                        label    = link_data['label'],
+                        url      = link_data['url'],
+                        host     = link_data['host']
+                    )
+                    db.session.add(link)
+            elif source in HOST_LABELS:
                 link = DownloadLink(
-                    movie_id = movie.id,
-                    label    = link_data['label'],
-                    url      = link_data['url'],
-                    host     = link_data['host']
+                    movie_id = movie_id,
+                    label    = data.get('quality', 'Download'),
+                    url      = data['url'],
+                    host     = HOST_LABELS[source]
                 )
                 db.session.add(link)
-        elif source in HOST_LABELS:
-            link = DownloadLink(
-                movie_id = movie.id,
-                label    = data.get('quality', 'Download'),
-                url      = data['url'],
-                host     = HOST_LABELS[source]
-            )
-            db.session.add(link)
 
         db.session.commit()
         log.info(
