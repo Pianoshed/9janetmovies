@@ -14,6 +14,10 @@ class Movie(db.Model):
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
     links       = db.relationship('DownloadLink', backref='movie', lazy=True)
 
+    @property
+    def download_links(self):
+        return self.links
+
     def to_dict(self):
         return {
             'id':          self.id,
