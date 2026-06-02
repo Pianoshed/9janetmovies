@@ -671,6 +671,259 @@ def scrape_thenkiri_page(url):
         log.error(f'thenkiri page scrape error {url}: {e}')
         return None
 
+# ══════════════════════════════════════════════════════════════
+# SOURCE 3: MEETDOWNLOAD.COM
+# ══════════════════════════════════════════════════════════════
+
+MEETDOWNLOAD_BASE  = 'https://meetdownload.com'
+MEETDOWNLOAD_STATE = os.getenv(
+    'MEETDOWNLOAD_STATE_FILE',
+    _default_state_file('meetdownload_processed.txt')
+)
+
+# Regex to extract the numeric ID from a meetdownload URL
+# e.g. /abc123.../in-the-grey-2026-30742-mkv  → 30742
+_MEETDL_ID_RE = re.compile(r'-(\d{4,6})-mkv$', re.IGNORECASE)
+
+
+def _meetdownload_url(hash_: str, slug: str) -> str:
+    return f'{MEETDOWNLOAD_BASE}/{hash_}/{slug}'
+
+
+def _id_from_meetdownload_url(url: str) -> int | None:
+    m = _MEETDL_ID_RE.search(url.rstrip('/').split('/')[-1])
+    return int(m.group(1)) if m else None
+
+
+def scrape_meetdownload_page(url: str) -> dict | None:
+    """Scrape a single meetdownload page and return structured data."""
+    res = _safe_get(url)
+    if not res:
+        return None
+
+    try:
+        soup = BeautifulSoup(res.text, 'lxml')
+
+        # ── Title ────────────────────────────────────────────
+        title = None
+        for sel in ['h1', 'h2', 'title']:
+            tag = soup.select_one(sel)
+            if tag:
+                raw = tag.get_text(strip=True)
+                # Strip "Download " prefix that meetdownload adds
+                raw = re.sub(r'^Download\s+', '', raw, flags=re.IGNORECASE)
+                # Strip trailing " – Meetdownload" or similar
+                raw = re.sub(r'\s*[|\-–]\s*meetdownload.*$', '', raw, flags=re.IGNORECASE)
+                raw = re.sub(r'\s*\(?\s*HDRIP\s*\)?\s*$', '', raw, flags=re.IGNORECASE)
+                raw = raw.strip()
+                if raw:
+                    title = raw
+                    break
+
+        if not title:
+            return None
+
+        if is_adult_content(title, url):
+            return None
+
+        # ── File size / quality label ─────────────────────────
+        size_text = ''
+        for pattern in [r'(\d+(?:\.\d+)?)\s*(MB|GB)', r'(\d+(?:\.\d+)?)(MB|GB)']:
+            m = re.search(pattern, res.text, re.IGNORECASE)
+            if m:
+                size_text = f'{m.group(1)}{m.group(2).upper()}'
+                break
+
+        quality = '1080p'
+        for q in ['2160p', '4K', '1080p', '720p', '480p', 'HDRIP', 'WEBRIP', 'BLURAY']:
+            if q.lower() in (title + res.text[:2000]).lower():
+                quality = q
+                break
+
+        # ── Upload date ───────────────────────────────────────
+        upload_date = None
+        dm = re.search(r'Uploaded[:\s]*(\d{2}-\d{2}-\d{4})', res.text)
+        if dm:
+            upload_date = dm.group(1)
+
+        # ── Subtitle available? ───────────────────────────────
+        has_subtitle = bool(
+            re.search(r'download\s+subtitle', res.text, re.IGNORECASE)
+            or 'subtitle' in res.text.lower()
+        )
+
+        return {
+            'title':        title,
+            'url':          url,
+            'quality':      quality,
+            'size':         size_text,
+            'upload_date':  upload_date,
+            'has_subtitle': has_subtitle,
+            'source':       'meetdownload',
+            'links': [{
+                'label': quality + (f' ({size_text})' if size_text else ''),
+                'url':   url,
+                'host':  'MeetDownload',
+                'title': title,
+            }]
+        }
+
+    except Exception as e:
+        log.error(f'meetdownload scrape error {url}: {e}')
+        return None
+
+
+def get_meetdownload_urls_by_id_range(
+    start_id: int,
+    end_id: int,
+    batch_size: int = 50
+) -> list[str]:
+    """
+    Discover meetdownload URLs via Google search for ID ranges.
+    Falls back to sequential probing when search is exhausted.
+    Returns a list of canonical URLs.
+    """
+    found = []
+    seen  = set()
+
+    # Strategy 1: Google index (fast, gets real slugs/hashes)
+    for offset in range(0, min(batch_size, end_id - start_id), 10):
+        query = f'site:meetdownload.com -{start_id + offset}'
+        try:
+            res = http.get(
+                'https://www.google.com/search',
+                params={'q': query, 'num': 10},
+                headers={**HEADERS, 'Accept-Language': 'en-US,en;q=0.9'},
+                timeout=10
+            )
+            urls = re.findall(
+                r'https://meetdownload\.com/[a-f0-9]{32}/[^\s"&<>]+',
+                res.text
+            )
+            for u in urls:
+                u = u.rstrip('/')
+                if u not in seen:
+                    mid = _id_from_meetdownload_url(u)
+                    if mid and start_id <= mid <= end_id:
+                        seen.add(u)
+                        found.append(u)
+            time.sleep(1.5)
+        except Exception as e:
+            log.warning(f'Google search for meetdownload failed: {e}')
+            break
+
+    log.info(f'meetdownload: discovered {len(found)} URLs via search (IDs {start_id}–{end_id})')
+    return found
+
+
+def get_meetdownload_urls_from_google(max_urls: int = 100) -> list[str]:
+    """
+    Broader Google discovery — searches for recent meetdownload uploads
+    without requiring an ID range.
+    """
+    found = []
+    seen  = set()
+    queries = [
+        'site:meetdownload.com mkv 2026',
+        'site:meetdownload.com mkv 2025',
+        'site:meetdownload.com download movie mkv',
+        'site:meetdownload.com nollywood mkv',
+        'site:meetdownload.com korean drama mkv',
+    ]
+
+    for query in queries:
+        if len(found) >= max_urls:
+            break
+        try:
+            for page in range(0, 3):  # up to 3 pages per query
+                res = http.get(
+                    'https://www.google.com/search',
+                    params={'q': query, 'num': 10, 'start': page * 10},
+                    headers={**HEADERS, 'Accept-Language': 'en-US,en;q=0.9'},
+                    timeout=10
+                )
+                urls = re.findall(
+                    r'https://meetdownload\.com/[a-f0-9]{32}/[^\s"&<>]+',
+                    res.text
+                )
+                new_found = 0
+                for u in urls:
+                    u = u.rstrip('/')
+                    if u not in seen and not is_adult_content('', u):
+                        seen.add(u)
+                        found.append(u)
+                        new_found += 1
+                if not new_found:
+                    break  # no new results on this page
+                time.sleep(1.5)
+        except Exception as e:
+            log.warning(f'meetdownload Google discovery failed: {e}')
+
+    log.info(f'meetdownload: discovered {len(found)} URLs via Google')
+    return found[:max_urls]
+
+
+def run_meetdownload_crawl(max_urls: int = 100):
+    log.info('═══ MeetDownload crawl ═══')
+    total_movies  = 0
+    total_series  = 0
+    total_skipped = 0
+    total_blocked = 0
+
+    processed = _load_processed_urls(MEETDOWNLOAD_STATE)
+    log.info(f'Already processed: {len(processed)} URLs')
+
+    # Discover new URLs
+    all_urls = get_meetdownload_urls_from_google(max_urls=max_urls * 2)
+    new_urls = [u for u in all_urls if u not in processed][:max_urls]
+    log.info(f'Crawling {len(new_urls)} new meetdownload URLs...')
+
+    for i, url in enumerate(new_urls, 1):
+        log.info(f'[{i}/{len(new_urls)}] {url}')
+
+        if is_adult_content('', url):
+            total_blocked += 1
+            _mark_url_processed(MEETDOWNLOAD_STATE, url)
+            continue
+
+        data = scrape_meetdownload_page(url)
+        if not data:
+            log.info('  Skipped — could not scrape or blocked')
+            total_skipped += 1
+            _mark_url_processed(MEETDOWNLOAD_STATE, url)
+            continue
+
+        title_is_series = is_series(data['title']) or is_series_from_url(url)
+        year = detect_year_from_text(data['title'], url)
+        tmdb = tmdb_search(
+            clean_series_title(data['title']) if title_is_series else data['title'],
+            year=year,
+            prefer_tv=title_is_series
+        )
+
+        log.info(
+            f'  "{data["title"]}" | TMDB: {"found" if tmdb else "not found"} '
+            f'| subtitle: {"✓" if data["has_subtitle"] else "✗"}'
+        )
+
+        if title_is_series:
+            save_series(data, tmdb, source='meetdownload')
+            total_series += 1
+        else:
+            save_movie(data, tmdb, source='meetdownload')
+            total_movies += 1
+
+        _mark_url_processed(MEETDOWNLOAD_STATE, url)
+        time.sleep(float(os.getenv('SLEEP_MEETDOWNLOAD', 0.8)))
+
+    log.info(
+        f'MeetDownload done: {total_movies} movies | '
+        f'{total_series} series | {total_skipped} skipped | '
+        f'{total_blocked} adult blocked'
+    )
+
+# ── SAVE SERIES ───────────────────────────────────────────────
+
 # ── SAVE SERIES ───────────────────────────────────────────────
 def save_series(data, tmdb, source='dldownload'):
     raw_title    = data['title']
@@ -681,13 +934,12 @@ def save_series(data, tmdb, source='dldownload'):
         log.warning(f'  Skipped series — unusable slug for title: {raw_title!r}')
         return
 
-    # Block adult content
     if is_adult_content(series_title, data.get('url', '')):
         return
 
     season, ep, is_full_season = extract_season_episode(raw_title)
 
-    poster = (tmdb.get('poster') if tmdb else None) or data.get('poster')
+    poster      = (tmdb.get('poster') if tmdb else None) or data.get('poster')
     description = tmdb.get('description', '') if tmdb else ''
     genre = (
         (tmdb.get('genre') if tmdb else None)
@@ -723,12 +975,13 @@ def save_series(data, tmdb, source='dldownload'):
         log.error(f'  DB error creating/flushing series "{series_title}": {e}')
         return
 
+    # ── Resolve episode URL and host ──────────────────────────
     if data.get('links'):
         first  = data['links'][0]
         host   = first['host']
         ep_url = first['url']
-    elif source == 'thenkiri':
-        host   = 'TheNkiri'
+    elif source in ('thenkiri', 'meetdownload'):
+        host   = 'TheNkiri' if source == 'thenkiri' else 'MeetDownload'
         ep_url = data['url']
     else:
         log.warning(f'  No download link for series "{series_title}" — series saved without episode')
@@ -739,6 +992,7 @@ def save_series(data, tmdb, source='dldownload'):
             log.error(f'  DB commit error: {e}')
         return
 
+    # ── Save episode ──────────────────────────────────────────
     try:
         if is_full_season:
             existing = Episode.query.filter_by(
@@ -844,12 +1098,13 @@ def save_movie(data, tmdb, source='dldownload'):
                     host     = link_data['host']
                 )
                 db.session.add(link)
-        elif source == 'thenkiri':
+        elif source in ('thenkiri', 'meetdownload'):
+            host_label = 'TheNkiri' if source == 'thenkiri' else 'MeetDownload'
             link = DownloadLink(
                 movie_id = movie.id,
-                label    = 'Download',
+                label    = data.get('quality', 'Download'),
                 url      = data['url'],
-                host     = 'TheNkiri'
+                host     = host_label
             )
             db.session.add(link)
 
@@ -1042,7 +1297,9 @@ def run_crawl(
     max_urls=100,
     include_dldownload=True,
     include_thenkiri=True,
+    include_meetdownload=True,        # ← add this
     thenkiri_max=200,
+    meetdownload_max=100,             # ← add this
     fetch_thenkiri_pages=False
 ):
     from flask import current_app
@@ -1058,12 +1315,18 @@ def run_crawl(
         with app.app_context():
             run_thenkiri_crawl(thenkiri_max, fetch_thenkiri_pages)
 
+    def _meetdownload_worker():                    # ← add this
+        with app.app_context():
+            run_meetdownload_crawl(meetdownload_max)
+
     futures = []
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:   # ← 3 workers now
         if include_dldownload:
             futures.append(executor.submit(_dldownload_worker))
         if include_thenkiri:
             futures.append(executor.submit(_thenkiri_worker))
+        if include_meetdownload:                           # ← add this
+            futures.append(executor.submit(_meetdownload_worker))
         for f in as_completed(futures):
             exc = f.exception()
             if exc:

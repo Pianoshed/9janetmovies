@@ -13,7 +13,7 @@ export interface Movie {
     genre: string
     description: string
     is_trending: boolean
-    badge: 'NEW' | 'HOT' | 'CAM' | 'HD' | '' | null  // ✅ constrain to known values
+    badge: 'NEW' | 'HOT' | 'CAM' | 'HD' | '' | null
     created_at: string
     links: DownloadLink[]
 }
