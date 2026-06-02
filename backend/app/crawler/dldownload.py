@@ -616,6 +616,8 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
         log.info(f'  Got {len(entries)} thenkiri entries so far')
         time.sleep(SLEEP_SITEMAP)
+    locs = soup.find_all('url')
+    log.info(f'  {sitemap_url}: {len(locs)} <url> tags found')
 
     return entries
 
@@ -1036,7 +1038,10 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
         f'{total_series} series | {total_skipped} skipped | '
         f'{total_blocked} adult blocked'
     )
-
+    entries = get_thenkiri_entries(max_urls=max_urls)
+    log.info(f'Raw entries fetched: {len(entries)}')
+    for e in entries[:5]:
+        log.info(f'  Sample: {e["url"]} | title: {e["title"]}')
 
 def run_crawl(
     max_urls=100,
