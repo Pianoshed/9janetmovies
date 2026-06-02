@@ -30,6 +30,8 @@ CURRENT_YEAR = datetime.now().year
 # ── SOURCES ──────────────────────────────────────────────────
 DLDOWNLOAD_BASE   = 'https://dldownload.com.ng'
 THENKIRI_BASE     = 'https://thenkiri.com'
+HDMOVIES4U_BASE   = 'https://hdmovies4u.in'
+
 THENKIRI_SITEMAPS = [
     'https://thenkiri.com/post-sitemap.xml',
     'https://thenkiri.com/post-sitemap2.xml',
@@ -40,15 +42,25 @@ THENKIRI_SITEMAPS = [
     'https://thenkiri.com/post-sitemap7.xml',
 ]
 
+HDMOVIES4U_SITEMAPS = [
+    'https://hdmovies4u.in/post-sitemap.xml',
+    'https://hdmovies4u.in/post-sitemap2.xml',
+    'https://hdmovies4u.in/post-sitemap3.xml',
+    'https://hdmovies4u.in/post-sitemap4.xml',
+    'https://hdmovies4u.in/post-sitemap5.xml',
+]
+
 TMDB_KEY  = os.getenv('TMDB_API_KEY')
 TMDB_BASE = 'https://api.themoviedb.org/3'
 TMDB_IMG  = 'https://image.tmdb.org/t/p/w500'
 
 # ── TIMING ───────────────────────────────────────────────────
-SLEEP_DLDOWNLOAD    = float(os.getenv('SLEEP_DLDOWNLOAD', 0.8))
-SLEEP_THENKIRI_LOOP = float(os.getenv('SLEEP_THENKIRI_LOOP', 0.3))
-SLEEP_THENKIRI_PAGE = float(os.getenv('SLEEP_THENKIRI_PAGE', 0.5))
-SLEEP_SITEMAP       = float(os.getenv('SLEEP_SITEMAP', 0.5))
+SLEEP_DLDOWNLOAD       = float(os.getenv('SLEEP_DLDOWNLOAD', 0.8))
+SLEEP_THENKIRI_LOOP    = float(os.getenv('SLEEP_THENKIRI_LOOP', 0.3))
+SLEEP_THENKIRI_PAGE    = float(os.getenv('SLEEP_THENKIRI_PAGE', 0.5))
+SLEEP_HDMOVIES4U_LOOP  = float(os.getenv('SLEEP_HDMOVIES4U_LOOP', 0.4))
+SLEEP_HDMOVIES4U_PAGE  = float(os.getenv('SLEEP_HDMOVIES4U_PAGE', 0.6))
+SLEEP_SITEMAP          = float(os.getenv('SLEEP_SITEMAP', 0.5))
 
 HEADERS = {
     'User-Agent': (
@@ -76,17 +88,14 @@ ADULT_URL_KEYWORDS = [
 def is_adult_content(title, url=''):
     title_lower = title.lower()
     url_lower   = url.lower()
-
     for kw in ADULT_KEYWORDS:
         if kw in title_lower:
             log.info(f'  Blocked adult content: {title!r} (keyword: {kw!r})')
             return True
-
     for kw in ADULT_URL_KEYWORDS:
         if kw in url_lower:
             log.info(f'  Blocked adult URL: {url!r} (keyword: {kw!r})')
             return True
-
     return False
 
 # ── RETRY-ENABLED HTTP SESSION ────────────────────────────────
@@ -148,8 +157,8 @@ TMDB_GENRE_MAP = {
     37:    'Drama',
 }
 
-# ── THENKIRI URL → GENRE DETECTION ───────────────────────────
-THENKIRI_URL_GENRE_MAP = {
+# ── URL → GENRE DETECTION ─────────────────────────────────────
+URL_GENRE_MAP = {
     'korean-drama':   'Korean',
     'korean-movie':   'Korean',
     'chinese-drama':  'Chinese',
@@ -165,11 +174,16 @@ THENKIRI_URL_GENRE_MAP = {
     'sci-fi':         'Sci-Fi',
     'documentary':    'Drama',
     'animation':      'Animation',
+    'bollywood':      'Drama',
+    'hollywood':      'Action',
+    'south-indian':   'Drama',
+    'hindi-dubbed':   'Drama',
+    'web-series':     'Drama',
 }
 
 def detect_genre_from_url(url):
     url_lower = url.lower()
-    for key, genre in THENKIRI_URL_GENRE_MAP.items():
+    for key, genre in URL_GENRE_MAP.items():
         if key in url_lower:
             return genre
     return None
@@ -188,7 +202,6 @@ def detect_year_from_text(*sources):
         match = re.search(r'(20\d{2}|19\d{2})', text)
         if match:
             yr = int(match.group(1))
-            # Reject years too far in the future
             if yr <= CURRENT_YEAR + 1:
                 return yr
     return None
@@ -241,12 +254,11 @@ def is_series_from_url(url):
         'tv-series', 'complete-series', 'korean-drama',
         'chinese-drama', 'anime-series', 'japanese-drama',
         'complete-tv', 'complete-korean', 'complete-anime',
-        'complete-chinese', 'complete-japanese',
+        'complete-chinese', 'complete-japanese', 'web-series',
     ])
 
 def extract_season_episode(title):
     tl = title.lower()
-
     m = re.search(r's(\d{1,2})\s*e(\d{1,2})', tl)
     if m:
         return int(m.group(1)), int(m.group(2)), False
@@ -303,7 +315,7 @@ def clean_movie_title(title):
     title = re.sub(r'\|\s*download.*', '', title, flags=re.IGNORECASE)
     title = re.sub(r'^download\s*', '', title, flags=re.IGNORECASE)
     title = re.sub(
-        r'\b(hollywood|nollywood|korean|chinese|anime|japanese|foreign)\s+(movie|drama)\b',
+        r'\b(hollywood|nollywood|korean|chinese|anime|japanese|foreign|bollywood|south\s*indian)\s+(movie|drama|film)\b',
         '', title, flags=re.IGNORECASE
     )
     title = re.sub(r'\s+', ' ', title)
@@ -328,8 +340,9 @@ def _mark_url_processed(state_file, url):
     with open(state_file, 'a', encoding='utf-8') as f:
         f.write(url + '\n')
 
-DLDOWNLOAD_STATE = os.getenv('DLDOWNLOAD_STATE_FILE', _default_state_file('dldownload_processed.txt'))
-THENKIRI_STATE   = os.getenv('THENKIRI_STATE_FILE',   _default_state_file('thenkiri_processed.txt'))
+DLDOWNLOAD_STATE  = os.getenv('DLDOWNLOAD_STATE_FILE',  _default_state_file('dldownload_processed.txt'))
+THENKIRI_STATE    = os.getenv('THENKIRI_STATE_FILE',    _default_state_file('thenkiri_processed.txt'))
+HDMOVIES4U_STATE  = os.getenv('HDMOVIES4U_STATE_FILE',  _default_state_file('hdmovies4u_processed.txt'))
 
 # ── TMDB LOOKUP (thread-safe rate limiter) ────────────────────
 _tmdb_lock      = threading.Lock()
@@ -460,7 +473,6 @@ def scrape_dldownload_page(url):
 
         title = re.sub(r'\s+', ' ', title).strip()
 
-        # Block adult content early
         if is_adult_content(title, url):
             return None
 
@@ -555,10 +567,8 @@ def _extract_poster_from_url_tag(url_tag, page_url):
     return None
 
 
-def get_thenkiri_entries(max_urls=500, sitemaps=None):
-    if sitemaps is None:
-        sitemaps = list(reversed(THENKIRI_SITEMAPS))  # newest first
-
+def _get_entries_from_sitemaps(sitemaps, max_urls, source_name):
+    """Shared sitemap-parsing logic for thenkiri and hdmovies4u."""
     entries   = []
     seen_urls = set()
 
@@ -568,7 +578,7 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
         res = _safe_get(sitemap_url, timeout=15)
         if not res:
-            log.error(f'Could not fetch thenkiri sitemap: {sitemap_url}')
+            log.error(f'Could not fetch {source_name} sitemap: {sitemap_url}')
             time.sleep(SLEEP_SITEMAP)
             continue
 
@@ -577,7 +587,7 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
             url_tags = soup.find_all('url')
             log.info(f'  {sitemap_url}: {len(url_tags)} <url> tags found')
 
-            for url_tag in url_tags:
+            for url_tag in reversed(url_tags):
                 if len(entries) >= max_urls:
                     break
 
@@ -608,20 +618,36 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
                     'title':  raw_title,
                     'url':    page_url,
                     'poster': poster,
-                    'source': 'thenkiri'
+                    'source': source_name
                 })
 
         except Exception as e:
-            log.error(f'thenkiri sitemap parse error ({sitemap_url}): {e}')
+            log.error(f'{source_name} sitemap parse error ({sitemap_url}): {e}')
 
-        log.info(f'  Got {len(entries)} thenkiri entries so far')
+        log.info(f'  Got {len(entries)} {source_name} entries so far')
         time.sleep(SLEEP_SITEMAP)
 
-    log.info(f'Total thenkiri entries fetched: {len(entries)}')
+    log.info(f'Total {source_name} entries fetched: {len(entries)}')
     return entries
 
 
-def scrape_thenkiri_page(url):
+def get_thenkiri_entries(max_urls=500, sitemaps=None):
+    if sitemaps is None:
+        sitemaps = list(THENKIRI_SITEMAPS)
+    return _get_entries_from_sitemaps(sitemaps, max_urls, 'thenkiri')
+
+
+def get_hdmovies4u_entries(max_urls=500, sitemaps=None):
+    if sitemaps is None:
+        sitemaps = list(HDMOVIES4U_SITEMAPS)
+    return _get_entries_from_sitemaps(sitemaps, max_urls, 'hdmovies4u')
+
+
+def _scrape_generic_wp_page(url, source_name):
+    """
+    Scrape a standard WordPress movie/post page.
+    Returns dict with title, description, poster — or None if blocked/failed.
+    """
     res = _safe_get(url)
     if not res:
         return None
@@ -639,11 +665,10 @@ def scrape_thenkiri_page(url):
         if not title and soup.title:
             title = soup.title.text.strip()
             title = re.sub(
-                r'\s*[|\-–]\s*.*?(nkiri|thenkiri).*$', '',
+                rf'\s*[|\-–]\s*.*?({re.escape(source_name)}).*$', '',
                 title, flags=re.IGNORECASE
             )
 
-        # Block adult content from page title
         if title and is_adult_content(title, url):
             return None
 
@@ -668,214 +693,22 @@ def scrape_thenkiri_page(url):
         }
 
     except Exception as e:
-        log.error(f'thenkiri page scrape error {url}: {e}')
+        log.error(f'{source_name} page scrape error {url}: {e}')
         return None
+
+
+def scrape_thenkiri_page(url):
+    return _scrape_generic_wp_page(url, 'thenkiri')
+
+
+def scrape_hdmovies4u_page(url):
+    return _scrape_generic_wp_page(url, 'hdmovies4u')
+
 
 # ══════════════════════════════════════════════════════════════
-# SOURCE 3: MEETDOWNLOAD.COM
+# SHARED: SAVE SERIES / SAVE MOVIE
 # ══════════════════════════════════════════════════════════════
 
-MEETDOWNLOAD_BASE  = 'https://meetdownload.com'
-MEETDOWNLOAD_STATE = os.getenv(
-    'MEETDOWNLOAD_STATE_FILE',
-    _default_state_file('meetdownload_processed.txt')
-)
-MEETDOWNLOAD_START_ID = int(os.getenv('MEETDOWNLOAD_START_ID', 27000))
-MEETDOWNLOAD_END_ID   = int(os.getenv('MEETDOWNLOAD_END_ID',   32000))
-
-_MEETDL_ID_RE = re.compile(r'-(\d{4,6})-mkv$', re.IGNORECASE)
-
-
-def _id_from_meetdownload_url(url: str):
-    m = _MEETDL_ID_RE.search(url.rstrip('/').split('/')[-1])
-    return int(m.group(1)) if m else None
-
-
-def scrape_meetdownload_page(url: str):
-    res = _safe_get(url)
-    if not res:
-        return None
-
-    try:
-        soup = BeautifulSoup(res.text, 'lxml')
-
-        title = None
-        for sel in ['h1', 'h2', 'title']:
-            tag = soup.select_one(sel)
-            if tag:
-                raw = tag.get_text(strip=True)
-                raw = re.sub(r'^Download\s+', '', raw, flags=re.IGNORECASE)
-                raw = re.sub(r'\s*[|\-–]\s*meetdownload.*$', '', raw, flags=re.IGNORECASE)
-                raw = re.sub(r'\s*\(?\s*HDRIP\s*\)?\s*$', '', raw, flags=re.IGNORECASE)
-                raw = raw.strip()
-                if raw:
-                    title = raw
-                    break
-
-        if not title:
-            return None
-
-        if is_adult_content(title, url):
-            return None
-
-        size_text = ''
-        m = re.search(r'(\d+(?:\.\d+)?)\s*(MB|GB)', res.text, re.IGNORECASE)
-        if m:
-            size_text = f'{m.group(1)}{m.group(2).upper()}'
-
-        quality = '1080p'
-        for q in ['2160p', '4K', '1080p', '720p', '480p', 'HDRIP', 'WEBRIP', 'BLURAY']:
-            if q.lower() in (title + res.text[:2000]).lower():
-                quality = q
-                break
-
-        has_subtitle = 'subtitle' in res.text.lower()
-
-        return {
-            'title':        title,
-            'url':          url,
-            'quality':      quality,
-            'size':         size_text,
-            'has_subtitle': has_subtitle,
-            'source':       'meetdownload',
-            'links': [{
-                'label': quality + (f' ({size_text})' if size_text else ''),
-                'url':   url,
-                'host':  'MeetDownload',
-                'title': title,
-            }]
-        }
-
-    except Exception as e:
-        log.error(f'meetdownload scrape error {url}: {e}')
-        return None
-
-
-def get_meetdownload_urls_by_id_probe(
-    start_id: int,
-    end_id: int,
-    max_urls: int = 100,
-    processed: set = None
-) -> list:
-    """
-    Probe meetdownload pages by constructing URLs from the search index.
-    Uses Bing (more lenient than Google) to find hash+slug for each ID range.
-    Falls back to direct ID-based URL guessing via known slug patterns.
-    """
-    if processed is None:
-        processed = set()
-
-    found = []
-    seen  = set()
-
-    # Strategy: Bing search in chunks — more bot-friendly than Google
-    chunk_size = 10
-    for chunk_start in range(start_id, end_id, chunk_size):
-        if len(found) >= max_urls:
-            break
-
-        chunk_end = min(chunk_start + chunk_size, end_id)
-        query = f'site:meetdownload.com {chunk_start}..{chunk_end} mkv'
-
-        try:
-            res = http.get(
-                'https://www.bing.com/search',
-                params={'q': query, 'count': 10},
-                headers={
-                    **HEADERS,
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept': 'text/html,application/xhtml+xml',
-                },
-                timeout=10
-            )
-
-            # Extract meetdownload URLs from Bing results
-            urls = re.findall(
-                r'https://meetdownload\.com/[a-f0-9]{32}/[a-z0-9\-]+',
-                res.text
-            )
-
-            for u in urls:
-                u = u.rstrip('/')
-                if u not in seen and u not in processed:
-                    if not is_adult_content('', u):
-                        seen.add(u)
-                        found.append(u)
-
-            time.sleep(2.0)  # be polite to Bing
-
-        except Exception as e:
-            log.warning(f'Bing search chunk {chunk_start}-{chunk_end} failed: {e}')
-            time.sleep(3.0)
-
-    log.info(f'meetdownload: found {len(found)} URLs via Bing probe')
-    return found[:max_urls]
-
-
-def run_meetdownload_crawl(max_urls: int = 100):
-    log.info('═══ MeetDownload crawl ═══')
-    total_movies  = 0
-    total_series  = 0
-    total_skipped = 0
-    total_blocked = 0
-
-    processed = _load_processed_urls(MEETDOWNLOAD_STATE)
-    log.info(f'Already processed: {len(processed)} URLs')
-
-    new_urls = get_meetdownload_urls_by_id_probe(
-        start_id  = MEETDOWNLOAD_START_ID,
-        end_id    = MEETDOWNLOAD_END_ID,
-        max_urls  = max_urls,
-        processed = processed,
-    )
-
-    log.info(f'Crawling {len(new_urls)} new meetdownload URLs...')
-
-    for i, url in enumerate(new_urls, 1):
-        log.info(f'[{i}/{len(new_urls)}] {url}')
-
-        if is_adult_content('', url):
-            total_blocked += 1
-            _mark_url_processed(MEETDOWNLOAD_STATE, url)
-            continue
-
-        data = scrape_meetdownload_page(url)
-        if not data:
-            log.info('  Skipped — could not scrape or blocked')
-            total_skipped += 1
-            _mark_url_processed(MEETDOWNLOAD_STATE, url)
-            continue
-
-        title_is_series = is_series(data['title']) or is_series_from_url(url)
-        year = detect_year_from_text(data['title'], url)
-        tmdb = tmdb_search(
-            clean_series_title(data['title']) if title_is_series else data['title'],
-            year=year,
-            prefer_tv=title_is_series
-        )
-
-        log.info(
-            f'  "{data["title"]}" | TMDB: {"found" if tmdb else "not found"} '
-            f'| subtitle: {"✓" if data["has_subtitle"] else "✗"}'
-        )
-
-        if title_is_series:
-            save_series(data, tmdb, source='meetdownload')
-            total_series += 1
-        else:
-            save_movie(data, tmdb, source='meetdownload')
-            total_movies += 1
-
-        _mark_url_processed(MEETDOWNLOAD_STATE, url)
-        time.sleep(float(os.getenv('SLEEP_MEETDOWNLOAD', 1.0)))
-
-    log.info(
-        f'MeetDownload done: {total_movies} movies | '
-        f'{total_series} series | {total_skipped} skipped | '
-        f'{total_blocked} adult blocked'
-    )
-
-# ── SAVE SERIES ───────────────────────────────────────────────
 def save_series(data, tmdb, source='dldownload'):
     raw_title    = data['title']
     series_title = clean_series_title(raw_title) or raw_title
@@ -927,12 +760,17 @@ def save_series(data, tmdb, source='dldownload'):
         return
 
     # ── Resolve episode URL and host ──────────────────────────
+    HOST_LABELS = {
+        'thenkiri':   'TheNkiri',
+        'hdmovies4u': 'HDMovies4u',
+    }
+
     if data.get('links'):
         first  = data['links'][0]
         host   = first['host']
         ep_url = first['url']
-    elif source in ('thenkiri', 'meetdownload'):
-        host   = 'TheNkiri' if source == 'thenkiri' else 'MeetDownload'
+    elif source in HOST_LABELS:
+        host   = HOST_LABELS[source]
         ep_url = data['url']
     else:
         log.warning(f'  No download link for series "{series_title}" — series saved without episode')
@@ -986,7 +824,7 @@ def save_series(data, tmdb, source='dldownload'):
         db.session.rollback()
         log.error(f'  DB error saving episode for "{series_title}": {e}')
 
-# ── SAVE MOVIE ────────────────────────────────────────────────
+
 def save_movie(data, tmdb, source='dldownload'):
     title = data['title']
     slug  = slugify(title)
@@ -995,7 +833,6 @@ def save_movie(data, tmdb, source='dldownload'):
         log.warning(f'  Skipped movie — unusable slug for title: {title!r}')
         return
 
-    # Block adult content
     if is_adult_content(title, data.get('url', '')):
         return
 
@@ -1011,6 +848,11 @@ def save_movie(data, tmdb, source='dldownload'):
         or detect_year_from_text(title, data.get('url', ''))
         or CURRENT_YEAR
     )
+
+    HOST_LABELS = {
+        'thenkiri':   'TheNkiri',
+        'hdmovies4u': 'HDMovies4u',
+    }
 
     try:
         existing = Movie.query.filter_by(slug=slug).first()
@@ -1049,13 +891,12 @@ def save_movie(data, tmdb, source='dldownload'):
                     host     = link_data['host']
                 )
                 db.session.add(link)
-        elif source in ('thenkiri', 'meetdownload'):
-            host_label = 'TheNkiri' if source == 'thenkiri' else 'MeetDownload'
+        elif source in HOST_LABELS:
             link = DownloadLink(
                 movie_id = movie.id,
                 label    = data.get('quality', 'Download'),
                 url      = data['url'],
-                host     = host_label
+                host     = HOST_LABELS[source]
             )
             db.session.add(link)
 
@@ -1069,6 +910,115 @@ def save_movie(data, tmdb, source='dldownload'):
     except Exception as e:
         db.session.rollback()
         log.error(f'  DB error saving movie "{title}": {e}')
+
+
+# ══════════════════════════════════════════════════════════════
+# SHARED: GENERIC SITEMAP-SOURCE CRAWL
+# ══════════════════════════════════════════════════════════════
+
+def _run_sitemap_crawl(
+    source_name,
+    state_file,
+    get_entries_fn,
+    scrape_page_fn,
+    max_urls,
+    fetch_pages,
+    sleep_loop,
+    sleep_page,
+):
+    log.info(f'═══ {source_name} crawl ═══')
+    total_movies  = 0
+    total_series  = 0
+    total_skipped = 0
+    total_blocked = 0
+
+    processed = _load_processed_urls(state_file)
+    log.info(f'Already processed: {len(processed)} URLs')
+
+    entries = get_entries_fn(max_urls=max_urls)
+    if not entries:
+        log.error(f'No entries from {source_name} sitemaps.')
+        return
+
+    entries = [e for e in entries if e['url'] not in processed]
+    log.info(f'Processing {len(entries)} new {source_name} entries...')
+
+    for i, entry in enumerate(entries, 1):
+        log.info(f'[{i}/{len(entries)}] {entry["url"]}')
+
+        title  = entry['title']
+        poster = entry['poster']
+
+        if fetch_pages:
+            page_data = scrape_page_fn(entry['url'])
+            if page_data is None:
+                total_blocked += 1
+                _mark_url_processed(state_file, entry['url'])
+                continue
+            if page_data.get('title'):
+                title = clean_movie_title(page_data['title'])
+            if page_data.get('poster'):
+                poster = page_data['poster']
+            time.sleep(sleep_page)
+
+        if is_adult_content(title, entry['url']):
+            total_blocked += 1
+            _mark_url_processed(state_file, entry['url'])
+            continue
+
+        title_is_series = is_series(title) or is_series_from_url(entry['url'])
+        search_title = clean_series_title(title) if title_is_series else clean_movie_title(title)
+
+        if not search_title:
+            log.info('  Skipped — empty title after cleaning')
+            total_skipped += 1
+            _mark_url_processed(state_file, entry['url'])
+            continue
+
+        year = detect_year_from_text(title, entry['url'])
+        tmdb = tmdb_search(search_title, year=year, prefer_tv=title_is_series)
+
+        if tmdb and not tmdb.get('poster') and poster:
+            tmdb['poster'] = poster
+        elif not tmdb:
+            tmdb = {
+                'poster':      poster,
+                'description': '',
+                'genre':       (
+                    detect_genre_from_url(entry['url'])
+                    or detect_genre_from_title(title)
+                ),
+                'year': year or CURRENT_YEAR
+            }
+
+        log.info(
+            f'  TMDB: {"found" if tmdb else "not found"} '
+            f'| poster: {"✓" if tmdb and tmdb.get("poster") else "✗"}'
+        )
+
+        data = {
+            'title':  search_title,
+            'url':    entry['url'],
+            'poster': poster,
+            'links':  []
+        }
+
+        if title_is_series:
+            save_series(data, tmdb, source=source_name)
+            total_series += 1
+        else:
+            save_movie(data, tmdb, source=source_name)
+            total_movies += 1
+
+        _mark_url_processed(state_file, entry['url'])
+        time.sleep(sleep_loop)
+
+    log.info(
+        f'{source_name} done: {total_movies} movies | '
+        f'{total_series} series | {total_skipped} skipped | '
+        f'{total_blocked} adult blocked'
+    )
+
 
 # ══════════════════════════════════════════════════════════════
 # MAIN CRAWL FUNCTIONS
@@ -1095,7 +1045,6 @@ def run_dldownload_crawl(max_urls=100):
     for i, url in enumerate(post_urls, 1):
         log.info(f'[{i}/{len(post_urls)}] {url}')
 
-        # Block adult URLs before even fetching the page
         if is_adult_content('', url):
             total_blocked += 1
             _mark_url_processed(DLDOWNLOAD_STATE, url)
@@ -1145,113 +1094,40 @@ def run_dldownload_crawl(max_urls=100):
 
 
 def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
-    log.info('═══ TheNkiri crawl ═══')
-    total_movies  = 0
-    total_series  = 0
-    total_skipped = 0
-    total_blocked = 0
-
-    processed = _load_processed_urls(THENKIRI_STATE)
-    log.info(f'Already processed: {len(processed)} URLs')
-
-    entries = get_thenkiri_entries(max_urls=max_urls)
-    if not entries:
-        log.error('No entries from thenkiri sitemaps.')
-        return
-
-    entries = [e for e in entries if e['url'] not in processed]
-    log.info(f'Processing {len(entries)} new thenkiri entries...')
-
-    for i, entry in enumerate(entries, 1):
-        log.info(f'[{i}/{len(entries)}] {entry["url"]}')
-
-        title  = entry['title']
-        poster = entry['poster']
-
-        if fetch_pages:
-            page_data = scrape_thenkiri_page(entry['url'])
-            if page_data is None:
-                # None means blocked or failed
-                total_blocked += 1
-                _mark_url_processed(THENKIRI_STATE, entry['url'])
-                continue
-            if page_data.get('title'):
-                title = clean_movie_title(page_data['title'])
-            if page_data.get('poster'):
-                poster = page_data['poster']
-            time.sleep(SLEEP_THENKIRI_PAGE)
-
-        # Final adult check on resolved title
-        if is_adult_content(title, entry['url']):
-            total_blocked += 1
-            _mark_url_processed(THENKIRI_STATE, entry['url'])
-            continue
-
-        title_is_series = is_series(title) or is_series_from_url(entry['url'])
-
-        if title_is_series:
-            search_title = clean_series_title(title)
-        else:
-            search_title = clean_movie_title(title)
-
-        if not search_title:
-            log.info('  Skipped — empty title after cleaning')
-            total_skipped += 1
-            _mark_url_processed(THENKIRI_STATE, entry['url'])
-            continue
-
-        year = detect_year_from_text(title, entry['url'])
-        tmdb = tmdb_search(search_title, year=year, prefer_tv=title_is_series)
-
-        if tmdb and not tmdb.get('poster') and poster:
-            tmdb['poster'] = poster
-        elif not tmdb:
-            tmdb = {
-                'poster':      poster,
-                'description': '',
-                'genre':       (
-                    detect_genre_from_url(entry['url'])
-                    or detect_genre_from_title(title)
-                ),
-                'year': year or CURRENT_YEAR
-            }
-
-        log.info(
-            f'  TMDB: {"found" if tmdb else "not found"} '
-            f'| poster: {"✓" if tmdb and tmdb.get("poster") else "✗"}'
-        )
-
-        data = {
-            'title':  search_title,
-            'url':    entry['url'],
-            'poster': poster,
-            'links':  []
-        }
-
-        if title_is_series:
-            save_series(data, tmdb, source='thenkiri')
-            total_series += 1
-        else:
-            save_movie(data, tmdb, source='thenkiri')
-            total_movies += 1
-
-        _mark_url_processed(THENKIRI_STATE, entry['url'])
-        time.sleep(SLEEP_THENKIRI_LOOP)
-
-    log.info(
-        f'TheNkiri done: {total_movies} movies | '
-        f'{total_series} series | {total_skipped} skipped | '
-        f'{total_blocked} adult blocked'
+    _run_sitemap_crawl(
+        source_name    = 'thenkiri',
+        state_file     = THENKIRI_STATE,
+        get_entries_fn = get_thenkiri_entries,
+        scrape_page_fn = scrape_thenkiri_page,
+        max_urls       = max_urls,
+        fetch_pages    = fetch_pages,
+        sleep_loop     = SLEEP_THENKIRI_LOOP,
+        sleep_page     = SLEEP_THENKIRI_PAGE,
     )
+
+
+def run_hdmovies4u_crawl(max_urls=200, fetch_pages=False):
+    _run_sitemap_crawl(
+        source_name    = 'hdmovies4u',
+        state_file     = HDMOVIES4U_STATE,
+        get_entries_fn = get_hdmovies4u_entries,
+        scrape_page_fn = scrape_hdmovies4u_page,
+        max_urls       = max_urls,
+        fetch_pages    = fetch_pages,
+        sleep_loop     = SLEEP_HDMOVIES4U_LOOP,
+        sleep_page     = SLEEP_HDMOVIES4U_PAGE,
+    )
+
 
 def run_crawl(
     max_urls=100,
     include_dldownload=True,
     include_thenkiri=True,
-    include_meetdownload=True,        # ← add this
+    include_hdmovies4u=True,
     thenkiri_max=200,
-    meetdownload_max=100,             # ← add this
-    fetch_thenkiri_pages=False
+    hdmovies4u_max=200,
+    fetch_thenkiri_pages=False,
+    fetch_hdmovies4u_pages=False,
 ):
     from flask import current_app
     app = current_app._get_current_object()
@@ -1266,18 +1142,18 @@ def run_crawl(
         with app.app_context():
             run_thenkiri_crawl(thenkiri_max, fetch_thenkiri_pages)
 
-    def _meetdownload_worker():                    # ← add this
+    def _hdmovies4u_worker():
         with app.app_context():
-            run_meetdownload_crawl(meetdownload_max)
+            run_hdmovies4u_crawl(hdmovies4u_max, fetch_hdmovies4u_pages)
 
     futures = []
-    with ThreadPoolExecutor(max_workers=3) as executor:   # ← 3 workers now
+    with ThreadPoolExecutor(max_workers=3) as executor:
         if include_dldownload:
             futures.append(executor.submit(_dldownload_worker))
         if include_thenkiri:
             futures.append(executor.submit(_thenkiri_worker))
-        if include_meetdownload:                           # ← add this
-            futures.append(executor.submit(_meetdownload_worker))
+        if include_hdmovies4u:
+            futures.append(executor.submit(_hdmovies4u_worker))
         for f in as_completed(futures):
             exc = f.exception()
             if exc:

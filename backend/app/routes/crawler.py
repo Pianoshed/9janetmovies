@@ -13,9 +13,9 @@ def reset_crawl_state():
     if token != CRAWLER_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, MEETDOWNLOAD_STATE
+    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, HDMOVIES4U_STATE
 
-    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, MEETDOWNLOAD_STATE]:
+    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, HDMOVIES4U_STATE]:
         try:
             open(state_file, 'w').close()
         except Exception:
@@ -41,10 +41,11 @@ def trigger_crawl():
                 max_urls=550,
                 include_dldownload=True,
                 include_thenkiri=True,
-                include_meetdownload=True,
+                include_hdmovies4u=True,
                 thenkiri_max=550,
-                meetdownload_max=200,
-                fetch_thenkiri_pages=False
+                hdmovies4u_max=550,
+                fetch_thenkiri_pages=False,
+                fetch_hdmovies4u_pages=False,
             )
 
     thread = threading.Thread(target=run)
@@ -98,26 +99,26 @@ def trigger_thenkiri_crawl():
     return jsonify({'status': 'TheNkiri crawl started'}), 200
 
 
-@crawler_bp.route('/api/crawl/meetdownload', methods=['POST'])
-def trigger_meetdownload_crawl():
+@crawler_bp.route('/api/crawl/hdmovies4u', methods=['POST'])
+def trigger_hdmovies4u_crawl():
     token = request.headers.get('X-Crawler-Token')
     if token != CRAWLER_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import run_meetdownload_crawl
+    from app.crawler.dldownload import run_hdmovies4u_crawl
     from flask import current_app
 
     app = current_app._get_current_object()
 
     def run():
         with app.app_context():
-            run_meetdownload_crawl(max_urls=200)
+            run_hdmovies4u_crawl(max_urls=550, fetch_pages=False)
 
     thread = threading.Thread(target=run)
     thread.daemon = True
     thread.start()
 
-    return jsonify({'status': 'MeetDownload crawl started'}), 200
+    return jsonify({'status': 'HDMovies4u crawl started'}), 200
 
 
 @crawler_bp.route('/api/crawl/youtube', methods=['POST'])
