@@ -574,8 +574,10 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
         try:
             soup = BeautifulSoup(res.text, 'xml')
+            url_tags = soup.find_all('url')
+            log.info(f'  {sitemap_url}: {len(url_tags)} <url> tags found')
 
-            for url_tag in soup.find_all('url'):
+            for url_tag in url_tags:
                 if len(entries) >= max_urls:
                     break
 
@@ -591,7 +593,6 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
                 if any(x in page_url for x in ['/page/', '/category/', '/tag/', '/author/']):
                     continue
 
-                # Block adult URLs early
                 if is_adult_content('', page_url):
                     continue
 
@@ -600,7 +601,6 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
                 slug_part = page_url.rstrip('/').split('/')[-1]
                 raw_title = slug_part.replace('-', ' ').title()
 
-                # Block adult titles derived from URL slug
                 if is_adult_content(raw_title, page_url):
                     continue
 
@@ -616,9 +616,8 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
 
         log.info(f'  Got {len(entries)} thenkiri entries so far')
         time.sleep(SLEEP_SITEMAP)
-    locs = soup.find_all('url')
-    log.info(f'  {sitemap_url}: {len(locs)} <url> tags found')
 
+    log.info(f'Total thenkiri entries fetched: {len(entries)}')
     return entries
 
 
@@ -1038,10 +1037,6 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
         f'{total_series} series | {total_skipped} skipped | '
         f'{total_blocked} adult blocked'
     )
-    entries = get_thenkiri_entries(max_urls=max_urls)
-    log.info(f'Raw entries fetched: {len(entries)}')
-    for e in entries[:5]:
-        log.info(f'  Sample: {e["url"]} | title: {e["title"]}')
 
 def run_crawl(
     max_urls=100,
