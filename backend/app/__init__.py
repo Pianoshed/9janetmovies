@@ -16,7 +16,6 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
-    # Mail config
     app.config['MAIL_SERVER']         = os.environ.get('MAIL_SERVER', 'smtppro.zoho.com')
     app.config['MAIL_PORT']           = int(os.environ.get('MAIL_PORT', 465))
     app.config['MAIL_USE_SSL']        = True
@@ -36,26 +35,6 @@ def create_app():
         "https://ninejamoviesnet1.onrender.com",
         os.getenv("FRONTEND_URL", ""),
     ])
-
-    @app.before_request
-    def block_bots():
-        ua = request.headers.get('User-Agent', '')
-        referer = request.headers.get('Referer', '')
-        origin = request.headers.get('Origin', '')
-
-        allowed = [
-            '9janetmovies.com.ng',
-            'localhost:3000',
-            'ninejamoviesnet1.onrender.com',
-        ]
-
-        # Allow if request comes from your frontend
-        if any(domain in referer or domain in origin for domain in allowed):
-            return None
-
-        # Block raw "node" or empty user agents with no referer
-        if (ua.strip() == 'node' or ua.strip() == '') and not referer:
-            return jsonify({'error': 'Forbidden'}), 403
 
     from app.models.movie import Movie
     from app.models.download_link import DownloadLink
