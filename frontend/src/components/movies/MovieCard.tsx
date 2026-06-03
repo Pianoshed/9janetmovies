@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
+import { useState } from 'react'
 import { Movie } from '@/lib/types'
 
 interface Props {
@@ -7,6 +10,8 @@ interface Props {
 }
 
 export default function MovieCard({ movie }: Props) {
+    const [imgError, setImgError] = useState(false)
+
     return (
         <div
             style={{
@@ -22,7 +27,7 @@ export default function MovieCard({ movie }: Props) {
 
                 {/* POSTER */}
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>
-                    {movie.poster_url ? (
+                    {movie.poster_url && !imgError ? (
                         <Image
                             src={movie.poster_url}
                             alt={movie.title}
@@ -30,6 +35,7 @@ export default function MovieCard({ movie }: Props) {
                             sizes="(max-width: 360px) 45vw, (max-width: 480px) 45vw, (max-width: 700px) 30vw, 160px"
                             style={{ objectFit: 'cover' }}
                             loading="lazy"
+                            onError={() => setImgError(true)}
                         />
                     ) : (
                         <div style={{

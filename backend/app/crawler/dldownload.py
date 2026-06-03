@@ -924,6 +924,9 @@ def save_series(data, tmdb, source='dldownload'):
         log.error(f'  DB error saving episode for "{series_title}": {e}')
 
 
+def _is_tmdb_poster(url):
+    return url and 'image.tmdb.org' in url
+
 def save_movie(data, tmdb, source='dldownload'):
     title = data['title']
     slug  = slugify(title)
@@ -954,7 +957,6 @@ def save_movie(data, tmdb, source='dldownload'):
     }
 
     try:
-        # ── Upsert movie: insert or update poster/description if missing ──
         stmt = pg_insert(Movie).values(
             title       = title,
             slug        = slug,
@@ -967,8 +969,17 @@ def save_movie(data, tmdb, source='dldownload'):
         ).on_conflict_do_update(
             index_elements=['slug'],
             set_={
-                'poster_url':  db.case(
+                # Upgrade to TMDB poster if current one is missing OR not from TMDB
+                'poster_url': db.case(
                     (Movie.poster_url == None, pg_insert(Movie).excluded.poster_url),
+                    (
+                        # Current poster is not from TMDB but new one is
+                        db.and_(
+                            Movie.poster_url.notlike('%image.tmdb.org%'),
+                            pg_insert(Movie).excluded.poster_url.like('%image.tmdb.org%')
+                        ),
+                        pg_insert(Movie).excluded.poster_url
+                    ),
                     else_=Movie.poster_url
                 ),
                 'description': db.case(
@@ -983,9 +994,7 @@ def save_movie(data, tmdb, source='dldownload'):
         db.session.flush()
         row      = result.fetchone()
         movie_id = row[0]
-        is_new   = row[1] == title  # heuristic — will be True for both insert & update
 
-        # Only add download links if this is a brand-new record
         existing_links = DownloadLink.query.filter_by(movie_id=movie_id).count()
         if existing_links == 0:
             if data.get('links'):
@@ -1016,7 +1025,6 @@ def save_movie(data, tmdb, source='dldownload'):
     except Exception as e:
         db.session.rollback()
         log.error(f'  DB error saving movie "{title}": {e}')
-
 
 # ══════════════════════════════════════════════════════════════
 # SHARED: GENERIC SITEMAP-SOURCE CRAWL
@@ -1273,13 +1281,7 @@ def run_crawl(
 # ══════════════════════════════════════════════════════════════
 # BACKFILL: fill missing descriptions & posters via TMDB
 # ══════════════════════════════════════════════════════════════
-
 def backfill_descriptions(batch_size=500):
-    """
-    One-time fix: finds all movies/series with empty description
-    (or missing poster) and re-queries TMDB to fill them in.
-    Call via: POST /api/crawl/backfill
-    """
     from app.models.series import Series
 
     log.info('═══ Backfill descriptions ═══')
@@ -1289,10 +1291,12 @@ def backfill_descriptions(batch_size=500):
 
     # ── Movies ────────────────────────────────────────────────
     movies = Movie.query.filter(
-        (Movie.description == None) | (Movie.description == '')
+        (Movie.description == None) | (Movie.description == '') |
+        (Movie.poster_url == None) |
+        (Movie.poster_url.notlike('%image.tmdb.org%'))
     ).limit(batch_size).all()
 
-    log.info(f'Movies needing description: {len(movies)}')
+    log.info(f'Movies needing update: {len(movies)}')
 
     for movie in movies:
         tmdb = tmdb_search(
@@ -1308,7 +1312,10 @@ def backfill_descriptions(batch_size=500):
             if tmdb.get('description') and not movie.description:
                 movie.description = tmdb['description']
                 changed = True
-            if tmdb.get('poster') and not movie.poster_url:
+            if tmdb.get('poster') and (
+                not movie.poster_url or
+                'image.tmdb.org' not in movie.poster_url
+            ):
                 movie.poster_url = tmdb['poster']
                 changed = True
             if changed:
@@ -1324,14 +1331,16 @@ def backfill_descriptions(batch_size=500):
         else:
             skipped += 1
 
-        time.sleep(0.1)  # respect TMDB rate limit
+        time.sleep(0.1)
 
     # ── Series ────────────────────────────────────────────────
     all_series = Series.query.filter(
-        (Series.description == None) | (Series.description == '')
+        (Series.description == None) | (Series.description == '') |
+        (Series.poster_url == None) |
+        (Series.poster_url.notlike('%image.tmdb.org%'))
     ).limit(batch_size).all()
 
-    log.info(f'Series needing description: {len(all_series)}')
+    log.info(f'Series needing update: {len(all_series)}')
 
     for s in all_series:
         tmdb = tmdb_search(
@@ -1346,7 +1355,10 @@ def backfill_descriptions(batch_size=500):
             if tmdb.get('description') and not s.description:
                 s.description = tmdb['description']
                 changed = True
-            if tmdb.get('poster') and not s.poster_url:
+            if tmdb.get('poster') and (
+                not s.poster_url or
+                'image.tmdb.org' not in s.poster_url
+            ):
                 s.poster_url = tmdb['poster']
                 changed = True
             if changed:

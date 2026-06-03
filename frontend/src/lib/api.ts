@@ -1,9 +1,15 @@
 import { Movie, MoviesResponse, Series } from './types'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api'
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 
 async function fetchJSON<T>(url: string): Promise<T | null> {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+            ...(INTERNAL_API_KEY && { 'X-Internal-Key': INTERNAL_API_KEY }),
+        },
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return res.json()
 }
