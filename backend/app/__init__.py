@@ -10,7 +10,20 @@ from flask_limiter.util import get_remote_address
 db = SQLAlchemy()
 migrate = Migrate()
 mail = Mail()
-limiter = Limiter(key_func=get_remote_address, default_limits=["60 per minute"])
+
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY")
+
+def get_request_identifier():
+    # Internal Next.js server calls are exempt from rate limiting
+    if INTERNAL_API_KEY and request.headers.get("X-Internal-Key") == INTERNAL_API_KEY:
+        return None  # returning None skips rate limiting for this request
+    return get_remote_address()
+
+limiter = Limiter(
+    key_func=get_request_identifier,
+    default_limits=["60 per minute"],
+    storage_uri=os.environ.get("REDIS_URL", "memory://")
+)
 
 def create_app():
     app = Flask(__name__)
