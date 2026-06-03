@@ -84,12 +84,22 @@ export default function Sidebar({ trending, series }: Props) {
                             marginBottom: '4px', borderRadius: '2px',
                             overflow: 'hidden', padding: '6px', gap: '8px',
                         }}>
+                            {/* FIX: was hardcoded 🎬, now renders poster_url */}
                             <div style={{
-                                width: '48px', height: '36px', background: '#dce3f5',
+                                width: '48px', height: '60px', background: '#dce3f5',
                                 flexShrink: 0, display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', fontSize: '18px', borderRadius: '2px',
+                                justifyContent: 'center', fontSize: '18px',
+                                borderRadius: '2px', overflow: 'hidden',
                             }}>
-                                🎬
+                                {s.poster_url
+                                    ? <img
+                                        src={s.poster_url}
+                                        alt={s.title}
+                                        loading="lazy"
+                                        style={{ width: '48px', height: '60px', objectFit: 'cover' }}
+                                    />
+                                    : '🎬'
+                                }
                             </div>
                             <div>
                                 <div style={{ fontSize: '12px', fontWeight: 600, lineHeight: 1.4 }}>
