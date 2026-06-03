@@ -28,7 +28,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     mail.init_app(app)
-    limiter.init_app(app)  # 👈 added
+    limiter.init_app(app)
 
     CORS(app, origins=[
         "http://localhost:3000",
@@ -37,11 +37,24 @@ def create_app():
         os.getenv("FRONTEND_URL", ""),
     ])
 
-    # 👇 block bots before every request
     @app.before_request
     def block_bots():
         ua = request.headers.get('User-Agent', '')
-        if ua.strip() == 'node' or ua.strip() == '':
+        referer = request.headers.get('Referer', '')
+        origin = request.headers.get('Origin', '')
+
+        allowed = [
+            '9janetmovies.com.ng',
+            'localhost:3000',
+            'ninejamoviesnet1.onrender.com',
+        ]
+
+        # Allow if request comes from your frontend
+        if any(domain in referer or domain in origin for domain in allowed):
+            return None
+
+        # Block raw "node" or empty user agents with no referer
+        if (ua.strip() == 'node' or ua.strip() == '') and not referer:
             return jsonify({'error': 'Forbidden'}), 403
 
     from app.models.movie import Movie
