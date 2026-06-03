@@ -229,6 +229,25 @@ URL_GENRE_MAP = {
     'web-series':     'Drama',
 }
 
+# ── DEAD POSTER DOMAINS (never save these as poster URLs) ─────
+# FIX: posters from these domains are broken external links.
+# We block them as fallbacks so only TMDB images or None are saved.
+DEAD_POSTER_DOMAINS = [
+    'thenkiri.com',
+    'hdmovies4u.in',
+    'nkiri.com',
+]
+
+def _is_safe_poster(url):
+    """Return True only if the poster URL is not from a dead/unreliable domain."""
+    if not url:
+        return False
+    url_lower = url.lower()
+    return not any(domain in url_lower for domain in DEAD_POSTER_DOMAINS)
+
+def _is_tmdb_poster(url):
+    return bool(url and 'image.tmdb.org' in url)
+
 def detect_genre_from_url(url):
     url_lower = url.lower()
     for key, genre in URL_GENRE_MAP.items():
@@ -271,6 +290,15 @@ def clean_title_for_search(title):
         title, flags=re.IGNORECASE
     )
     title = re.sub(r'(20\d{2}|19\d{2})', '', title)
+    # FIX: strip trailing source/genre noise that confuses TMDB
+    # e.g. "Weightlifting Fairy Kim Bok Joo Korean Drama" → "Weightlifting Fairy Kim Bok Joo"
+    title = re.sub(
+        r'\b(korean drama|korean movie|chinese drama|chinese movie|'
+        r'japanese drama|anime series|nollywood movie|nollywood film|'
+        r'hollywood movie|bollywood movie|web series|tv series|'
+        r'complete series|complete season)\b.*$',
+        '', title, flags=re.IGNORECASE
+    )
     title = re.sub(r'\s+', ' ', title)
     return title.strip()
 
@@ -353,6 +381,13 @@ def clean_series_title(title):
     title = re.sub(r'batch.*', '', title, flags=re.IGNORECASE)
     title = re.sub(r'- series.*', '', title, flags=re.IGNORECASE)
     title = re.sub(r'series\s*\d+.*', '', title, flags=re.IGNORECASE)
+    # FIX: also strip trailing "Korean Drama" / "Chinese Drama" noise from slug titles
+    title = re.sub(
+        r'\b(korean drama|korean movie|chinese drama|chinese movie|'
+        r'japanese drama|anime series|nollywood movie|nollywood film|'
+        r'hollywood movie|web series)\b.*$',
+        '', title, flags=re.IGNORECASE
+    )
     title = re.sub(r'\(.*?\)', '', title)
     title = re.sub(r'\[.*?\]', '', title)
     title = re.sub(r'\|\s*download.*', '', title, flags=re.IGNORECASE)
@@ -511,8 +546,7 @@ def _safe_get_hdmovies4u(url, timeout=20):
         if res.status_code == 403:
             log.warning(f'HDMovies4u 403 on {url} — resetting session and retrying')
             _reset_hdmovies4u_session()
-            import time as _time
-            _time.sleep(2)
+            time.sleep(2)
             session = _get_hdmovies4u_session()
             res = session.get(url, timeout=timeout)
         if res.status_code != 200:
@@ -690,7 +724,9 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
                 if is_adult_content('', page_url):
                     continue
 
-                poster = _extract_poster_from_url_tag(url_tag, page_url)
+                raw_poster = _extract_poster_from_url_tag(url_tag, page_url)
+                # FIX: only keep the sitemap poster if it's not from a dead domain
+                poster = raw_poster if _is_safe_poster(raw_poster) else None
 
                 slug_part = page_url.rstrip('/').split('/')[-1]
                 raw_title = slug_part.replace('-', ' ').title()
@@ -773,7 +809,8 @@ def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
             tag = soup.find('meta', attr)
             if tag:
                 img = tag.get('content', '').strip()
-                if img.startswith('http') and 'use-on-site' not in img:
+                # FIX: also reject dead-domain posters found in og:image
+                if img.startswith('http') and 'use-on-site' not in img and _is_safe_poster(img):
                     poster = img
                     break
 
@@ -823,7 +860,8 @@ def save_series(data, tmdb, source='dldownload'):
     )
 
     try:
-        # ── Upsert series: insert or skip if slug already exists ──
+        # FIX: upsert now also upgrades poster to TMDB if current is missing
+        # or not from TMDB — matching the same logic used in save_movie.
         stmt = pg_insert(Series).values(
             title       = series_title,
             slug        = slug,
@@ -833,8 +871,17 @@ def save_series(data, tmdb, source='dldownload'):
         ).on_conflict_do_update(
             index_elements=['slug'],
             set_={
-                'poster_url':  db.case(
+                'poster_url': db.case(
+                    # No poster at all → use new one
                     (Series.poster_url == None, pg_insert(Series).excluded.poster_url),
+                    # Has a poster but it's not from TMDB and new one is → upgrade
+                    (
+                        db.and_(
+                            Series.poster_url.notlike('%image.tmdb.org%'),
+                            pg_insert(Series).excluded.poster_url.like('%image.tmdb.org%')
+                        ),
+                        pg_insert(Series).excluded.poster_url
+                    ),
                     else_=Series.poster_url
                 ),
                 'description': db.case(
@@ -850,8 +897,8 @@ def save_series(data, tmdb, source='dldownload'):
         row = result.fetchone()
         series_id = row[0]
 
-        # Reload the ORM object for episode association
-        series = Series.query.get(series_id)
+        # FIX: use db.session.get() — Series.query.get() is deprecated in SQLAlchemy 2.x
+        series = db.session.get(Series, series_id)
         if not series:
             log.warning(f'  Could not reload series id={series_id}')
             return
@@ -924,9 +971,6 @@ def save_series(data, tmdb, source='dldownload'):
         log.error(f'  DB error saving episode for "{series_title}": {e}')
 
 
-def _is_tmdb_poster(url):
-    return url and 'image.tmdb.org' in url
-
 def save_movie(data, tmdb, source='dldownload'):
     title = data['title']
     slug  = slugify(title)
@@ -969,11 +1013,9 @@ def save_movie(data, tmdb, source='dldownload'):
         ).on_conflict_do_update(
             index_elements=['slug'],
             set_={
-                # Upgrade to TMDB poster if current one is missing OR not from TMDB
                 'poster_url': db.case(
                     (Movie.poster_url == None, pg_insert(Movie).excluded.poster_url),
                     (
-                        # Current poster is not from TMDB but new one is
                         db.and_(
                             Movie.poster_url.notlike('%image.tmdb.org%'),
                             pg_insert(Movie).excluded.poster_url.like('%image.tmdb.org%')
@@ -1112,6 +1154,9 @@ def _run_sitemap_crawl(
             f'| poster: {"✓" if tmdb and tmdb.get("poster") else "✗"}'
         )
 
+        # FIX: pass search_title (cleaned) as data title, not the raw slug title.
+        # Previously data['title'] = entry['title'] (raw slug), so clean_series_title
+        # would run again inside save_series on already-messy input.
         data = {
             'title':  search_title,
             'url':    entry['url'],
@@ -1281,10 +1326,17 @@ def run_crawl(
 # ══════════════════════════════════════════════════════════════
 # BACKFILL: fill missing descriptions & posters via TMDB
 # ══════════════════════════════════════════════════════════════
-def backfill_descriptions(batch_size=500):
-    from app.models.series import Series
+def backfill_descriptions(batch_size=500, offset=0):
+    """
+    Fill missing/non-TMDB posters and descriptions for movies and series.
 
-    log.info('═══ Backfill descriptions ═══')
+    Args:
+        batch_size: how many rows to process per run
+        offset:     row offset for pagination — increment by batch_size each
+                    run to avoid re-processing the same rows when TMDB returns
+                    nothing (previously the same batch was re-fetched forever)
+    """
+    log.info(f'═══ Backfill descriptions (offset={offset}, batch={batch_size}) ═══')
     updated_movies  = 0
     updated_series  = 0
     skipped         = 0
@@ -1294,7 +1346,7 @@ def backfill_descriptions(batch_size=500):
         (Movie.description == None) | (Movie.description == '') |
         (Movie.poster_url == None) |
         (Movie.poster_url.notlike('%image.tmdb.org%'))
-    ).limit(batch_size).all()
+    ).order_by(Movie.id).offset(offset).limit(batch_size).all()
 
     log.info(f'Movies needing update: {len(movies)}')
 
@@ -1338,7 +1390,7 @@ def backfill_descriptions(batch_size=500):
         (Series.description == None) | (Series.description == '') |
         (Series.poster_url == None) |
         (Series.poster_url.notlike('%image.tmdb.org%'))
-    ).limit(batch_size).all()
+    ).order_by(Series.id).offset(offset).limit(batch_size).all()
 
     log.info(f'Series needing update: {len(all_series)}')
 
@@ -1380,3 +1432,21 @@ def backfill_descriptions(batch_size=500):
         f'Backfill done: {updated_movies} movies updated | '
         f'{updated_series} series updated | {skipped} skipped'
     )
+    return updated_movies + updated_series  # return count so caller can decide to paginate
+
+
+def backfill_all(batch_size=500):
+    """
+    Paginate through ALL movies and series needing a TMDB update.
+    Keeps running batches until nothing is left to update.
+    """
+    log.info('═══ Full backfill started ═══')
+    offset = 0
+    total  = 0
+    while True:
+        updated = backfill_descriptions(batch_size=batch_size, offset=offset)
+        total  += updated
+        if updated == 0:
+            break
+        offset += batch_size
+    log.info(f'═══ Full backfill complete — {total} total records updated ═══')
