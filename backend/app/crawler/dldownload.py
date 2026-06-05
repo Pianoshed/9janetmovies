@@ -25,13 +25,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# ── CURRENT YEAR ─────────────────────────────────────────────
 CURRENT_YEAR = datetime.now().year
 
-# ── SOURCES ──────────────────────────────────────────────────
-DLDOWNLOAD_BASE   = 'https://dldownload.com.ng'
-THENKIRI_BASE     = 'https://thenkiri.com'
-HDMOVIES4U_BASE   = 'https://hdmovies4u.in'
+DLDOWNLOAD_BASE  = 'https://dldownload.com.ng'
+THENKIRI_BASE    = 'https://thenkiri.com'
+LOADEDFILES_BASE = 'https://loadedfiles.org'
 
 THENKIRI_SITEMAPS = [
     'https://thenkiri.com/post-sitemap.xml',
@@ -43,25 +41,24 @@ THENKIRI_SITEMAPS = [
     'https://thenkiri.com/post-sitemap7.xml',
 ]
 
-HDMOVIES4U_SITEMAPS = [
-    'https://hdmovies4u.in/post-sitemap.xml',
-    'https://hdmovies4u.in/post-sitemap2.xml',
-    'https://hdmovies4u.in/post-sitemap3.xml',
-    'https://hdmovies4u.in/post-sitemap4.xml',
-    'https://hdmovies4u.in/post-sitemap5.xml',
+LOADEDFILES_SITEMAPS = [
+    'https://loadedfiles.org/post-sitemap.xml',
+    'https://loadedfiles.org/post-sitemap2.xml',
+    'https://loadedfiles.org/post-sitemap3.xml',
+    'https://loadedfiles.org/post-sitemap4.xml',
+    'https://loadedfiles.org/post-sitemap5.xml',
 ]
 
 TMDB_KEY  = os.getenv('TMDB_API_KEY')
 TMDB_BASE = 'https://api.themoviedb.org/3'
 TMDB_IMG  = 'https://image.tmdb.org/t/p/w500'
 
-# ── TIMING ───────────────────────────────────────────────────
-SLEEP_DLDOWNLOAD       = float(os.getenv('SLEEP_DLDOWNLOAD', 0.8))
-SLEEP_THENKIRI_LOOP    = float(os.getenv('SLEEP_THENKIRI_LOOP', 0.3))
-SLEEP_THENKIRI_PAGE    = float(os.getenv('SLEEP_THENKIRI_PAGE', 0.5))
-SLEEP_HDMOVIES4U_LOOP  = float(os.getenv('SLEEP_HDMOVIES4U_LOOP', 0.4))
-SLEEP_HDMOVIES4U_PAGE  = float(os.getenv('SLEEP_HDMOVIES4U_PAGE', 0.6))
-SLEEP_SITEMAP          = float(os.getenv('SLEEP_SITEMAP', 0.5))
+SLEEP_DLDOWNLOAD      = float(os.getenv('SLEEP_DLDOWNLOAD', 0.8))
+SLEEP_THENKIRI_LOOP   = float(os.getenv('SLEEP_THENKIRI_LOOP', 0.3))
+SLEEP_THENKIRI_PAGE   = float(os.getenv('SLEEP_THENKIRI_PAGE', 0.5))
+SLEEP_LOADEDFILES_LOOP = float(os.getenv('SLEEP_LOADEDFILES_LOOP', 0.4))
+SLEEP_LOADEDFILES_PAGE = float(os.getenv('SLEEP_LOADEDFILES_PAGE', 0.6))
+SLEEP_SITEMAP         = float(os.getenv('SLEEP_SITEMAP', 0.5))
 
 HEADERS = {
     'User-Agent': (
@@ -71,22 +68,6 @@ HEADERS = {
     )
 }
 
-# ── ANTI-403 HEADERS (for HDMovies4u and other strict sites) ─
-BROWSER_HEADERS = {
-    'User-Agent': (
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/124.0.0.0 Safari/537.36'
-    ),
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Cache-Control': 'max-age=0',
-}
-
-# ── ADULT CONTENT FILTER ──────────────────────────────────────
 ADULT_KEYWORDS = [
     'xxx', 'porn', 'pornography', 'adult', 'erotic', 'erotica',
     'sex tape', 'nude', 'naked', 'hardcore', 'softcore', 'fetish',
@@ -114,7 +95,6 @@ def is_adult_content(title, url=''):
             return True
     return False
 
-# ── RETRY-ENABLED HTTP SESSION ────────────────────────────────
 def _make_session():
     session = requests.Session()
     retry = Retry(
@@ -131,39 +111,6 @@ def _make_session():
 
 http = _make_session()
 
-# ── HDMOVIES4U DEDICATED SESSION (anti-403) ───────────────────
-def _make_hdmovies4u_session():
-    """
-    Session that primes cookies by visiting the homepage first,
-    then uses full browser headers to avoid 403s on sitemaps/pages.
-    """
-    session = _make_session()
-    session.headers.update(BROWSER_HEADERS)
-    try:
-        session.headers.update({'Referer': 'https://hdmovies4u.in/'})
-        res = session.get('https://hdmovies4u.in/', timeout=15)
-        log.info(f'HDMovies4u cookie prime: HTTP {res.status_code}')
-    except Exception as e:
-        log.warning(f'HDMovies4u cookie prime failed (non-fatal): {e}')
-    return session
-
-_hdmovies4u_session = None
-_hdmovies4u_session_lock = threading.Lock()
-
-def _get_hdmovies4u_session():
-    global _hdmovies4u_session
-    with _hdmovies4u_session_lock:
-        if _hdmovies4u_session is None:
-            _hdmovies4u_session = _make_hdmovies4u_session()
-    return _hdmovies4u_session
-
-def _reset_hdmovies4u_session():
-    """Call this if the session starts getting 403s again."""
-    global _hdmovies4u_session
-    with _hdmovies4u_session_lock:
-        _hdmovies4u_session = None
-
-# ── GENRE MAP ────────────────────────────────────────────────
 GENRE_MAP = {
     'Korean':    ['korean', 'k-drama', 'kdrama'],
     'Chinese':   ['chinese', 'china', 'mandarin', 'cdrama'],
@@ -205,7 +152,6 @@ TMDB_GENRE_MAP = {
     37:    'Drama',
 }
 
-# ── URL → GENRE DETECTION ─────────────────────────────────────
 URL_GENRE_MAP = {
     'korean-drama':   'Korean',
     'korean-movie':   'Korean',
@@ -229,17 +175,13 @@ URL_GENRE_MAP = {
     'web-series':     'Drama',
 }
 
-# ── DEAD POSTER DOMAINS (never save these as poster URLs) ─────
-# FIX: posters from these domains are broken external links.
-# We block them as fallbacks so only TMDB images or None are saved.
 DEAD_POSTER_DOMAINS = [
     'thenkiri.com',
-    'hdmovies4u.in',
     'nkiri.com',
+    'loadedfiles.org',
 ]
 
 def _is_safe_poster(url):
-    """Return True only if the poster URL is not from a dead/unreliable domain."""
     if not url:
         return False
     url_lower = url.lower()
@@ -290,8 +232,6 @@ def clean_title_for_search(title):
         title, flags=re.IGNORECASE
     )
     title = re.sub(r'(20\d{2}|19\d{2})', '', title)
-    # FIX: strip trailing source/genre noise that confuses TMDB
-    # e.g. "Weightlifting Fairy Kim Bok Joo Korean Drama" → "Weightlifting Fairy Kim Bok Joo"
     title = re.sub(
         r'\b(korean drama|korean movie|chinese drama|chinese movie|'
         r'japanese drama|anime series|nollywood movie|nollywood film|'
@@ -302,7 +242,6 @@ def clean_title_for_search(title):
     title = re.sub(r'\s+', ' ', title)
     return title.strip()
 
-# ── SERIES DETECTION ─────────────────────────────────────────
 SERIES_PATTERNS = [
     r's\d{1,2}\s*e\d{1,2}',
     r's\d{1,2}\b',
@@ -381,7 +320,6 @@ def clean_series_title(title):
     title = re.sub(r'batch.*', '', title, flags=re.IGNORECASE)
     title = re.sub(r'- series.*', '', title, flags=re.IGNORECASE)
     title = re.sub(r'series\s*\d+.*', '', title, flags=re.IGNORECASE)
-    # FIX: also strip trailing "Korean Drama" / "Chinese Drama" noise from slug titles
     title = re.sub(
         r'\b(korean drama|korean movie|chinese drama|chinese movie|'
         r'japanese drama|anime series|nollywood movie|nollywood film|'
@@ -404,7 +342,6 @@ def clean_movie_title(title):
     title = re.sub(r'\s+', ' ', title)
     return title.strip(' -–:|')
 
-# ── CRAWL STATE ───────────────────────────────────────────────
 def _default_state_file(name):
     local_dir = Path(__file__).parent / 'crawler_state'
     try:
@@ -423,14 +360,13 @@ def _mark_url_processed(state_file, url):
     with open(state_file, 'a', encoding='utf-8') as f:
         f.write(url + '\n')
 
-DLDOWNLOAD_STATE  = os.getenv('DLDOWNLOAD_STATE_FILE',  _default_state_file('dldownload_processed.txt'))
-THENKIRI_STATE    = os.getenv('THENKIRI_STATE_FILE',    _default_state_file('thenkiri_processed.txt'))
-HDMOVIES4U_STATE  = os.getenv('HDMOVIES4U_STATE_FILE',  _default_state_file('hdmovies4u_processed.txt'))
+DLDOWNLOAD_STATE   = os.getenv('DLDOWNLOAD_STATE_FILE',   _default_state_file('dldownload_processed.txt'))
+THENKIRI_STATE     = os.getenv('THENKIRI_STATE_FILE',     _default_state_file('thenkiri_processed.txt'))
+LOADEDFILES_STATE  = os.getenv('LOADEDFILES_STATE_FILE',  _default_state_file('loadedfiles_processed.txt'))
 
-# ── TMDB LOOKUP (thread-safe rate limiter) ────────────────────
 _tmdb_lock      = threading.Lock()
 _tmdb_last_call = 0.0
-TMDB_MIN_INTERVAL = 0.05  # 50ms ≈ 20 req/s
+TMDB_MIN_INTERVAL = 0.05
 
 def tmdb_search(title, year=None, prefer_tv=False):
     global _tmdb_last_call
@@ -517,9 +453,7 @@ def tmdb_search(title, year=None, prefer_tv=False):
         log.error(f'TMDB error for "{title}": {e}')
         return None
 
-# ── FETCH HELPERS ─────────────────────────────────────────────
 def _safe_get(url, timeout=20, session=None):
-    """Generic GET. Pass a custom session for sites needing special headers."""
     requester = session or http
     try:
         res = requester.get(url, headers=HEADERS, timeout=timeout)
@@ -535,35 +469,6 @@ def _safe_get(url, timeout=20, session=None):
         log.error(f'Request failed for {url}: {e}')
         return None
 
-def _safe_get_hdmovies4u(url, timeout=20):
-    """
-    GET for HDMovies4u using the primed browser session.
-    Automatically resets and retries once on 403.
-    """
-    session = _get_hdmovies4u_session()
-    try:
-        res = session.get(url, timeout=timeout)
-        if res.status_code == 403:
-            log.warning(f'HDMovies4u 403 on {url} — resetting session and retrying')
-            _reset_hdmovies4u_session()
-            time.sleep(2)
-            session = _get_hdmovies4u_session()
-            res = session.get(url, timeout=timeout)
-        if res.status_code != 200:
-            log.warning(f'HTTP {res.status_code} for {url}')
-            return None
-        content_type = res.headers.get('Content-Type', '')
-        if 'text' not in content_type and 'xml' not in content_type:
-            log.warning(f'Unexpected Content-Type "{content_type}" for {url}')
-            return None
-        return res
-    except Exception as e:
-        log.error(f'Request failed for {url}: {e}')
-        return None
-
-# ══════════════════════════════════════════════════════════════
-# SOURCE 1: DLDOWNLOAD.COM.NG
-# ══════════════════════════════════════════════════════════════
 
 def scrape_dldownload_page(url):
     res = _safe_get(url)
@@ -639,9 +544,6 @@ def get_dldownload_urls(max_urls=500):
         log.error(f'dldownload sitemap parse error: {e}')
         return []
 
-# ══════════════════════════════════════════════════════════════
-# SOURCE 2: THENKIRI.COM  /  SOURCE 3: HDMOVIES4U.IN
-# ══════════════════════════════════════════════════════════════
 
 def _extract_poster_from_url_tag(url_tag, page_url):
     IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
@@ -679,11 +581,6 @@ def _extract_poster_from_url_tag(url_tag, page_url):
 
 
 def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
-    """
-    Shared sitemap-parsing logic for thenkiri and hdmovies4u.
-    fetch_fn: optional callable(url, timeout) → Response | None
-              defaults to _safe_get if not provided.
-    """
     if fetch_fn is None:
         fetch_fn = _safe_get
 
@@ -725,7 +622,6 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
                     continue
 
                 raw_poster = _extract_poster_from_url_tag(url_tag, page_url)
-                # FIX: only keep the sitemap poster if it's not from a dead domain
                 poster = raw_poster if _is_safe_poster(raw_poster) else None
 
                 slug_part = page_url.rstrip('/').split('/')[-1]
@@ -757,21 +653,13 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
     return _get_entries_from_sitemaps(sitemaps, max_urls, 'thenkiri')
 
 
-def get_hdmovies4u_entries(max_urls=500, sitemaps=None):
-    """Uses the anti-403 browser session for HDMovies4u sitemaps."""
+def get_loadedfiles_entries(max_urls=500, sitemaps=None):
     if sitemaps is None:
-        sitemaps = list(HDMOVIES4U_SITEMAPS)
-    return _get_entries_from_sitemaps(
-        sitemaps, max_urls, 'hdmovies4u',
-        fetch_fn=_safe_get_hdmovies4u
-    )
+        sitemaps = list(LOADEDFILES_SITEMAPS)
+    return _get_entries_from_sitemaps(sitemaps, max_urls, 'loadedfiles')
 
 
 def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
-    """
-    Scrape a standard WordPress movie/post page.
-    Returns dict with title, description, poster — or None if blocked/failed.
-    """
     if fetch_fn is None:
         fetch_fn = _safe_get
 
@@ -809,7 +697,6 @@ def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
             tag = soup.find('meta', attr)
             if tag:
                 img = tag.get('content', '').strip()
-                # FIX: also reject dead-domain posters found in og:image
                 if img.startswith('http') and 'use-on-site' not in img and _is_safe_poster(img):
                     poster = img
                     break
@@ -829,13 +716,9 @@ def scrape_thenkiri_page(url):
     return _scrape_generic_wp_page(url, 'thenkiri')
 
 
-def scrape_hdmovies4u_page(url):
-    return _scrape_generic_wp_page(url, 'hdmovies4u', fetch_fn=_safe_get_hdmovies4u)
+def scrape_loadedfiles_page(url):
+    return _scrape_generic_wp_page(url, 'loadedfiles')
 
-
-# ══════════════════════════════════════════════════════════════
-# SHARED: SAVE SERIES / SAVE MOVIE  (upsert — no more 403 dupe errors)
-# ══════════════════════════════════════════════════════════════
 
 def save_series(data, tmdb, source='dldownload'):
     raw_title    = data['title']
@@ -860,8 +743,6 @@ def save_series(data, tmdb, source='dldownload'):
     )
 
     try:
-        # FIX: upsert now also upgrades poster to TMDB if current is missing
-        # or not from TMDB — matching the same logic used in save_movie.
         stmt = pg_insert(Series).values(
             title       = series_title,
             slug        = slug,
@@ -872,9 +753,7 @@ def save_series(data, tmdb, source='dldownload'):
             index_elements=['slug'],
             set_={
                 'poster_url': db.case(
-                    # No poster at all → use new one
                     (Series.poster_url == None, pg_insert(Series).excluded.poster_url),
-                    # Has a poster but it's not from TMDB and new one is → upgrade
                     (
                         db.and_(
                             Series.poster_url.notlike('%image.tmdb.org%'),
@@ -897,7 +776,6 @@ def save_series(data, tmdb, source='dldownload'):
         row = result.fetchone()
         series_id = row[0]
 
-        # FIX: use db.session.get() — Series.query.get() is deprecated in SQLAlchemy 2.x
         series = db.session.get(Series, series_id)
         if not series:
             log.warning(f'  Could not reload series id={series_id}')
@@ -910,10 +788,9 @@ def save_series(data, tmdb, source='dldownload'):
         log.error(f'  DB error upserting series "{series_title}": {e}')
         return
 
-    # ── Resolve episode URL and host ──────────────────────────
     HOST_LABELS = {
-        'thenkiri':   'TheNkiri',
-        'hdmovies4u': 'HDMovies4u',
+        'thenkiri':    'TheNkiri',
+        'loadedfiles': 'LoadedFiles',
     }
 
     if data.get('links'):
@@ -927,7 +804,6 @@ def save_series(data, tmdb, source='dldownload'):
         log.warning(f'  No download link for series "{series_title}" — series saved without episode')
         return
 
-    # ── Save episode ──────────────────────────────────────────
     try:
         if is_full_season:
             existing = Episode.query.filter_by(
@@ -996,8 +872,8 @@ def save_movie(data, tmdb, source='dldownload'):
     )
 
     HOST_LABELS = {
-        'thenkiri':   'TheNkiri',
-        'hdmovies4u': 'HDMovies4u',
+        'thenkiri':    'TheNkiri',
+        'loadedfiles': 'LoadedFiles',
     }
 
     try:
@@ -1068,9 +944,6 @@ def save_movie(data, tmdb, source='dldownload'):
         db.session.rollback()
         log.error(f'  DB error saving movie "{title}": {e}')
 
-# ══════════════════════════════════════════════════════════════
-# SHARED: GENERIC SITEMAP-SOURCE CRAWL
-# ══════════════════════════════════════════════════════════════
 
 def _run_sitemap_crawl(
     source_name,
@@ -1154,9 +1027,6 @@ def _run_sitemap_crawl(
             f'| poster: {"✓" if tmdb and tmdb.get("poster") else "✗"}'
         )
 
-        # FIX: pass search_title (cleaned) as data title, not the raw slug title.
-        # Previously data['title'] = entry['title'] (raw slug), so clean_series_title
-        # would run again inside save_series on already-messy input.
         data = {
             'title':  search_title,
             'url':    entry['url'],
@@ -1180,10 +1050,6 @@ def _run_sitemap_crawl(
         f'{total_blocked} adult blocked'
     )
 
-
-# ══════════════════════════════════════════════════════════════
-# MAIN CRAWL FUNCTIONS
-# ══════════════════════════════════════════════════════════════
 
 def run_dldownload_crawl(max_urls=100):
     log.info('═══ DLDownload crawl ═══')
@@ -1267,16 +1133,16 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
     )
 
 
-def run_hdmovies4u_crawl(max_urls=200, fetch_pages=False):
+def run_loadedfiles_crawl(max_urls=200, fetch_pages=False):
     _run_sitemap_crawl(
-        source_name    = 'hdmovies4u',
-        state_file     = HDMOVIES4U_STATE,
-        get_entries_fn = get_hdmovies4u_entries,
-        scrape_page_fn = scrape_hdmovies4u_page,
+        source_name    = 'loadedfiles',
+        state_file     = LOADEDFILES_STATE,
+        get_entries_fn = get_loadedfiles_entries,
+        scrape_page_fn = scrape_loadedfiles_page,
         max_urls       = max_urls,
         fetch_pages    = fetch_pages,
-        sleep_loop     = SLEEP_HDMOVIES4U_LOOP,
-        sleep_page     = SLEEP_HDMOVIES4U_PAGE,
+        sleep_loop     = SLEEP_LOADEDFILES_LOOP,
+        sleep_page     = SLEEP_LOADEDFILES_PAGE,
     )
 
 
@@ -1284,11 +1150,11 @@ def run_crawl(
     max_urls=100,
     include_dldownload=True,
     include_thenkiri=True,
-    include_hdmovies4u=True,
+    include_loadedfiles=True,
     thenkiri_max=200,
-    hdmovies4u_max=200,
+    loadedfiles_max=200,
     fetch_thenkiri_pages=False,
-    fetch_hdmovies4u_pages=False,
+    fetch_loadedfiles_pages=False,
 ):
     from flask import current_app
     app = current_app._get_current_object()
@@ -1303,9 +1169,9 @@ def run_crawl(
         with app.app_context():
             run_thenkiri_crawl(thenkiri_max, fetch_thenkiri_pages)
 
-    def _hdmovies4u_worker():
+    def _loadedfiles_worker():
         with app.app_context():
-            run_hdmovies4u_crawl(hdmovies4u_max, fetch_hdmovies4u_pages)
+            run_loadedfiles_crawl(loadedfiles_max, fetch_loadedfiles_pages)
 
     futures = []
     with ThreadPoolExecutor(max_workers=3) as executor:
@@ -1313,8 +1179,8 @@ def run_crawl(
             futures.append(executor.submit(_dldownload_worker))
         if include_thenkiri:
             futures.append(executor.submit(_thenkiri_worker))
-        if include_hdmovies4u:
-            futures.append(executor.submit(_hdmovies4u_worker))
+        if include_loadedfiles:
+            futures.append(executor.submit(_loadedfiles_worker))
         for f in as_completed(futures):
             exc = f.exception()
             if exc:
@@ -1323,25 +1189,12 @@ def run_crawl(
     log.info('═══ All crawls complete ═══')
 
 
-# ══════════════════════════════════════════════════════════════
-# BACKFILL: fill missing descriptions & posters via TMDB
-# ══════════════════════════════════════════════════════════════
 def backfill_descriptions(batch_size=500, offset=0):
-    """
-    Fill missing/non-TMDB posters and descriptions for movies and series.
-
-    Args:
-        batch_size: how many rows to process per run
-        offset:     row offset for pagination — increment by batch_size each
-                    run to avoid re-processing the same rows when TMDB returns
-                    nothing (previously the same batch was re-fetched forever)
-    """
     log.info(f'═══ Backfill descriptions (offset={offset}, batch={batch_size}) ═══')
     updated_movies  = 0
     updated_series  = 0
     skipped         = 0
 
-    # ── Movies ────────────────────────────────────────────────
     movies = Movie.query.filter(
         (Movie.description == None) | (Movie.description == '') |
         (Movie.poster_url == None) |
@@ -1385,7 +1238,6 @@ def backfill_descriptions(batch_size=500, offset=0):
 
         time.sleep(0.1)
 
-    # ── Series ────────────────────────────────────────────────
     all_series = Series.query.filter(
         (Series.description == None) | (Series.description == '') |
         (Series.poster_url == None) |
@@ -1432,14 +1284,10 @@ def backfill_descriptions(batch_size=500, offset=0):
         f'Backfill done: {updated_movies} movies updated | '
         f'{updated_series} series updated | {skipped} skipped'
     )
-    return updated_movies + updated_series  # return count so caller can decide to paginate
+    return updated_movies + updated_series
 
 
 def backfill_all(batch_size=500):
-    """
-    Paginate through ALL movies and series needing a TMDB update.
-    Keeps running batches until nothing is left to update.
-    """
     log.info('═══ Full backfill started ═══')
     offset = 0
     total  = 0
