@@ -13,9 +13,9 @@ def reset_crawl_state():
     if token != CRAWLER_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, HDMOVIES4U_STATE
+    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE
 
-    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, HDMOVIES4U_STATE]:
+    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE]:
         try:
             open(state_file, 'w').close()
         except Exception:
@@ -41,11 +41,11 @@ def trigger_crawl():
                 max_urls=550,
                 include_dldownload=True,
                 include_thenkiri=True,
-                include_hdmovies4u=True,
+                include_loadedfiles=True,
                 thenkiri_max=550,
-                hdmovies4u_max=550,
+                loadedfiles_max=550,
                 fetch_thenkiri_pages=False,
-                fetch_hdmovies4u_pages=False,
+                fetch_loadedfiles_pages=False,
             )
 
     thread = threading.Thread(target=run)
@@ -99,26 +99,26 @@ def trigger_thenkiri_crawl():
     return jsonify({'status': 'TheNkiri crawl started'}), 200
 
 
-@crawler_bp.route('/api/crawl/hdmovies4u', methods=['POST'])
-def trigger_hdmovies4u_crawl():
+@crawler_bp.route('/api/crawl/loadedfiles', methods=['POST'])
+def trigger_loadedfiles_crawl():
     token = request.headers.get('X-Crawler-Token')
     if token != CRAWLER_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import run_hdmovies4u_crawl
+    from app.crawler.dldownload import run_loadedfiles_crawl
     from flask import current_app
 
     app = current_app._get_current_object()
 
     def run():
         with app.app_context():
-            run_hdmovies4u_crawl(max_urls=550, fetch_pages=False)
+            run_loadedfiles_crawl(max_urls=550, fetch_pages=False)
 
     thread = threading.Thread(target=run)
     thread.daemon = True
     thread.start()
 
-    return jsonify({'status': 'HDMovies4u crawl started'}), 200
+    return jsonify({'status': 'LoadedFiles crawl started'}), 200
 
 
 @crawler_bp.route('/api/crawl/youtube', methods=['POST'])
@@ -164,7 +164,6 @@ def trigger_blog_crawl():
 
     return jsonify({'status': 'Blog crawl started'}), 200
 
-# Add this route to your existing crawler.py (in crawler_bp routes)
 
 @crawler_bp.route('/api/crawl/backfill', methods=['POST'])
 def trigger_backfill():
