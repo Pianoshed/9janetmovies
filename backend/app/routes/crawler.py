@@ -90,7 +90,7 @@ def trigger_thenkiri_crawl():
 
     def run():
         with app.app_context():
-            run_thenkiri_crawl(max_urls=550, fetch_pages=False)
+            run_thenkiri_crawl(max_urls=600, fetch_pages=False)
 
     thread = threading.Thread(target=run)
     thread.daemon = True
