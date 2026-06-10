@@ -22,11 +22,13 @@ from app.crawler.dldownload import (
 
 log = logging.getLogger(__name__)
 
-JAROCK_BASE     = 'https://9jarocks.net'
-JAROCK_STATE    = os.getenv('JAROCK_STATE_FILE', _default_state_file('9jarocks_processed.txt'))
-JAROCK_DELAY    = float(os.getenv('JAROCK_DELAY', 1.0))
-JAROCK_TIMEOUT  = int(os.getenv('JAROCK_TIMEOUT', 15))
-JAROCK_MAX_PAGES = int(os.getenv('JAROCK_MAX_PAGES', 10))  # per category
+JAROCK_BASE      = 'https://9jarocks.net'
+JAROCK_STATE     = os.getenv('JAROCK_STATE_FILE', _default_state_file('9jarocks_processed.txt'))
+JAROCK_DELAY     = float(os.getenv('JAROCK_DELAY', 1.5))
+JAROCK_TIMEOUT   = int(os.getenv('JAROCK_TIMEOUT', 20))
+JAROCK_MAX_PAGES = int(os.getenv('JAROCK_MAX_PAGES', 10))
+
+SCRAPER_API_KEY  = os.getenv('SCRAPER_API_KEY', '')
 
 # Series categories only — skip movies
 SERIES_CATEGORIES = [
@@ -42,9 +44,17 @@ SERIES_CATEGORIES = [
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
+                  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': 'https://www.google.com/',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'cross-site',
 }
 
 # Matches: Show.Name.S01E02.720p... or Show Name - S01E02...
@@ -58,19 +68,48 @@ _SEASON_PACK_RE = re.compile(r'^(.+?)\s+[Ss]eason\s+(\d+)', re.IGNORECASE)
 
 
 def _get(url):
+    """
+    Try direct request first. On 403/ConnectionError, fall back to ScraperAPI
+    if SCRAPER_API_KEY is set, otherwise log and return None.
+    """
+    time.sleep(JAROCK_DELAY)
+
+    # --- Direct attempt ---
     try:
-        time.sleep(JAROCK_DELAY)
         r = requests.get(url, headers=HEADERS, timeout=JAROCK_TIMEOUT)
+        if r.status_code == 200:
+            return r
+        if r.status_code not in (403, 429, 503):
+            r.raise_for_status()
+        log.warning(f'Direct request blocked ({r.status_code}) for {url!r} — trying proxy')
+    except requests.exceptions.RequestException as exc:
+        log.warning(f'Direct request failed for {url!r}: {exc} — trying proxy')
+
+    # --- ScraperAPI fallback ---
+    if not SCRAPER_API_KEY:
+        log.error(f'No SCRAPER_API_KEY set; cannot bypass block for {url!r}')
+        return None
+
+    try:
+        proxy = f'http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001'
+        proxies = {'http': proxy, 'https': proxy}
+        r = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=JAROCK_TIMEOUT + 15,
+            proxies=proxies,
+            verify=False,
+        )
         r.raise_for_status()
+        log.info(f'ScraperAPI succeeded for {url!r}')
         return r
     except Exception as exc:
-        log.error(f'GET failed {url!r}: {exc}')
+        log.error(f'ScraperAPI also failed for {url!r}: {exc}')
         return None
 
 
 def _parse_episode_from_filename(filename):
     """Extract show/season/episode from a filename like Show.S01E02.720p.mkv"""
-    # Strip extension and junk tags like [9jaRocks.Com]
     stem = re.sub(r'\.[a-zA-Z0-9]{2,4}$', '', filename)
     stem = re.sub(r'\[.*?\]', '', stem)
     stem = stem.strip()
@@ -203,7 +242,6 @@ def _crawl_post(post_url, page_title, processed):
         if parsed:
             _save_episode(parsed['show'], parsed['season'], parsed['episode'], parsed['label'], href)
         else:
-            # Fallback: use page title for show/season, episode=0 (pack)
             label = f'S{fallback_season:02d}E00'
             _save_episode(fallback_show, fallback_season, 0, label, href)
 
