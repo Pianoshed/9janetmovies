@@ -2,7 +2,6 @@ import os
 import re
 import time
 import logging
-from pathlib import Path
 from urllib.parse import urljoin, unquote
 
 import requests
@@ -20,27 +19,42 @@ from app.crawler.dldownload import (
     _default_state_file,
     _load_processed_urls,
     _mark_url_processed,
-    HEADERS,
     CURRENT_YEAR,
 )
 
 log = logging.getLogger(__name__)
 
-O2TV_BASE_URL   = os.getenv('O2TV_BASE_URL', 'http://d6.o2tv.org/')
-O2TV_STATE      = os.getenv('O2TV_STATE_FILE', _default_state_file('o2tv_processed.txt'))
-O2TV_DELAY      = float(os.getenv('O2TV_DELAY', 0.5))
-O2TV_TIMEOUT    = int(os.getenv('O2TV_TIMEOUT', 15))
+O2TV_BASE_URL = os.getenv('O2TV_BASE_URL', 'http://d6.o2tv.org/')
+O2TV_STATE    = os.getenv('O2TV_STATE_FILE', _default_state_file('o2tv_processed.txt'))
+O2TV_DELAY    = float(os.getenv('O2TV_DELAY', 0.5))
+O2TV_TIMEOUT  = int(os.getenv('O2TV_TIMEOUT', 15))
+O2TV_PROXY    = os.getenv('O2TV_PROXY', None)
 
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.m4v', '.wmv', '.flv'}
 
 _EP_RE     = re.compile(r'(?P<show>.+?)\s*[-–]\s*[Ss](?P<season>\d+)[Ee](?P<episode>\d+)', re.IGNORECASE)
 _SEASON_RE = re.compile(r'[Ss]eason\s*(\d+)', re.IGNORECASE)
 
+O2TV_HEADERS = {
+    'User-Agent':                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept':                    'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language':           'en-US,en;q=0.5',
+    'Accept-Encoding':           'gzip, deflate',
+    'Referer':                   'https://www.google.com/',
+    'DNT':                       '1',
+    'Connection':                'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+}
+
 
 def _get(url):
     try:
         time.sleep(O2TV_DELAY)
-        r = requests.get(url, headers=HEADERS, timeout=O2TV_TIMEOUT)
+        proxies = {'http': O2TV_PROXY, 'https': O2TV_PROXY} if O2TV_PROXY else None
+        r = requests.get(url, headers=O2TV_HEADERS, timeout=O2TV_TIMEOUT, proxies=proxies)
+        if r.status_code == 403:
+            log.error(f'403 Forbidden: {url!r} — server blocked this IP. Set O2TV_PROXY env var to bypass.')
+            return None
         r.raise_for_status()
         return r
     except Exception as exc:
@@ -134,8 +148,8 @@ def _save_episode(show_title, season, episode, label, video_url):
                     else_=Series.poster_url
                 ),
                 'description': db.case(
-                    (Series.description == None,  pg_insert(Series).excluded.description),
-                    (Series.description == '',    pg_insert(Series).excluded.description),
+                    (Series.description == None, pg_insert(Series).excluded.description),
+                    (Series.description == '',   pg_insert(Series).excluded.description),
                     else_=Series.description
                 ),
             }
@@ -145,12 +159,12 @@ def _save_episode(show_title, season, episode, label, video_url):
         db.session.commit()
         series_id = result.fetchone()[0]
 
-        is_full = (episode == 0)
         existing = Episode.query.filter_by(
             series_id=series_id, season=season, episode=episode
         ).first()
 
         if not existing:
+            is_full = (episode == 0)
             db.session.add(Episode(
                 series_id = series_id,
                 season    = season,
@@ -175,11 +189,7 @@ def _crawl_season(show_title, season_num, season_url, processed):
     for entry in _list_dir(season_url):
         name = entry['name']
         href = entry['href']
-        if entry['is_dir']:
-            continue
-        if not _is_video(name):
-            continue
-        if href in processed:
+        if entry['is_dir'] or not _is_video(name) or href in processed:
             continue
         parsed = _parse_filename(name)
         if parsed:
@@ -210,11 +220,11 @@ def _crawl_show(show_name, show_url, processed):
 def run_o2tv_crawl(base_url=None):
     base_url  = base_url or O2TV_BASE_URL
     processed = _load_processed_urls(O2TV_STATE)
-    log.info(f'═══ O2TV crawl | base: {base_url} | already seen: {len(processed)} ═══')
+    log.info(f'═══ O2TV crawl | base: {base_url} | proxy: {"✓" if O2TV_PROXY else "✗"} | already seen: {len(processed)} ═══')
 
     top = _list_dir(base_url)
     if not top:
-        log.error('No entries at O2TV base URL — aborting.')
+        log.error('No entries at O2TV base URL — aborting. If 403, set O2TV_PROXY env var.')
         return
 
     total = 0
