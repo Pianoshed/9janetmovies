@@ -25,9 +25,9 @@ def reset_crawl_state():
         return jsonify({'error': 'Unauthorized'}), 401
 
     from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE
-    from app.crawler.o2tv_crawler import O2TV_STATE
+    from app.crawler.jarock import JAROCK_STATE
 
-    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE, O2TV_STATE]:
+    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE, JAROCK_STATE]:
         try:
             open(state_file, 'w').close()
         except Exception:
@@ -100,16 +100,15 @@ def trigger_youtube_crawl():
     return jsonify({'status': 'YouTube crawl started'}), 200
 
 
-@crawler_bp.route('/api/crawl/o2tv', methods=['POST'])
-def trigger_o2tv_crawl():
+@crawler_bp.route('/api/crawl/9jarocks', methods=['POST'])
+def trigger_9jarocks_crawl():
     if not _auth(request):
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.o2tv_crawler import run_o2tv_crawl
+    from app.crawler.jarock import run_9jarocks_crawl
 
-    base_url = request.json.get('base_url') if request.is_json else None
-    _thread(current_app._get_current_object(), run_o2tv_crawl, base_url=base_url)
-    return jsonify({'status': 'O2TV crawl started'}), 200
+    _thread(current_app._get_current_object(), run_9jarocks_crawl)
+    return jsonify({'status': '9jaRocks crawl started'}), 200
 
 
 @crawler_bp.route('/api/crawl/blog', methods=['POST'])
