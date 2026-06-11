@@ -1,4 +1,4 @@
-from flask import Blueprint, make_response
+﻿from flask import Blueprint, make_response
 from feedgen.feed import FeedGenerator
 from app.models.movie import Movie
 from datetime import timezone
@@ -9,10 +9,10 @@ rss_bp = Blueprint('rss', __name__)
 def rss_feed():
     fg = FeedGenerator()
     fg.id('https://9janetmovies.com.ng/')
-    fg.title('9janetmovies – Free Movie Downloads')
+    fg.title('9janetmovies - Free Movie Downloads')
     fg.link(href='https://9janetmovies.com.ng/', rel='alternate')
     fg.link(href='https://9janetmovies.com.ng/rss', rel='self')
-    fg.description('Latest Nollywood, Hollywood, Korean & more movie downloads.')
+    fg.description('Latest Nollywood, Hollywood, Korean and more movie downloads.')
     fg.language('en')
 
     movies = Movie.query.order_by(Movie.created_at.desc()).limit(50).all()
