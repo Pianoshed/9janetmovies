@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, make_response
+from flask import Blueprint, make_response
 from feedgen.feed import FeedGenerator
 from app.models.movie import Movie
 from datetime import timezone
