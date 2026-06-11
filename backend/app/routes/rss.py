@@ -3,7 +3,7 @@ from feedgen.feed import FeedGenerator
 from app.models.movie import Movie
 from datetime import timezone
 
-rss_bp = Blueprint('rss', __name__)
+rss_bp = Blueprint('rss', __name__, url_prefix='/api')
 
 @rss_bp.route('/rss')
 def rss_feed():
