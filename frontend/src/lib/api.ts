@@ -34,9 +34,7 @@ export async function getMovies(page = 1, genre = ''): Promise<MoviesResponse> {
 
 export async function getAllSeries(): Promise<Series[]> {
     try {
-        // No page param → Flask returns all series in one shot
-        // (frontend handles its own pagination)
-        const data = await fetchJSON<any>(`${API}/series`) ?? {}
+        const data = await fetchJSON<any>(`${API}/series?slim=true`) ?? {}
         return data?.series ?? []
     } catch (err) {
         console.error('getAllSeries error:', err)
