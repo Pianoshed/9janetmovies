@@ -11,8 +11,8 @@ class Series(db.Model):
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
     episodes    = db.relationship('Episode', backref='series', lazy=True)
 
-    def to_dict(self):
-        return {
+    def to_dict(self, slim=False):
+        data = {
             'id':          self.id,
             'title':       self.title,
             'slug':        self.slug,
@@ -20,5 +20,7 @@ class Series(db.Model):
             'genre':       self.genre,
             'description': self.description,
             'created_at':  self.created_at.isoformat(),
-            'episodes':    [e.to_dict() for e in self.episodes]
         }
+        if not slim:
+            data['episodes'] = [e.to_dict() for e in self.episodes]
+        return data
