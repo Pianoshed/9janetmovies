@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/rss',
-        destination: 'https://ninejamoviesnet.onrender.com/api/rss',
+        destination: 'https://api.9janetmovies.com.ng/api/rss',
       },
     ];
   },
