@@ -69,6 +69,7 @@ def create_app():
     from app.routes.genres import genres_bp
     from app.routes.trending import trending_bp
     from app.routes.mail import mail_bp
+    from app.routes.rss import rss_bp  
 
     app.register_blueprint(blog_bp)
     app.register_blueprint(crawler_bp)
@@ -78,6 +79,7 @@ def create_app():
     app.register_blueprint(genres_bp)
     app.register_blueprint(trending_bp)
     app.register_blueprint(mail_bp)
+    app.register_blueprint(rss_bp)
 
     from app.admin.views import init_admin
     init_admin(app)
