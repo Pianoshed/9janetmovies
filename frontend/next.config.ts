@@ -1,28 +1,27 @@
 import type { NextConfig } from "next";
 
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'https://ninejamoviesnet1.onrender.com/api';
+
 const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/rss',
+        destination: `${BACKEND}/rss`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
-      // TMDB
       { protocol: 'https', hostname: 'image.tmdb.org', pathname: '/t/p/**' },
       { protocol: 'https', hostname: 'www.themoviedb.org' },
-
-      // YouTube thumbnails
       { protocol: 'https', hostname: 'i.ytimg.com' },
       { protocol: 'https', hostname: 'img.youtube.com' },
-
-      // Unsplash
       { protocol: 'https', hostname: 'images.unsplash.com' },
-
-      // TheNkiri (WordPress)
       { protocol: 'https', hostname: 'thenkiri.com' },
       { protocol: 'https', hostname: '**.thenkiri.com' },
-
-      // DLDownload (WordPress)
       { protocol: 'https', hostname: 'dldownload.com.ng' },
       { protocol: 'https', hostname: '**.dldownload.com.ng' },
-
-      // WordPress CDN (used by both sources)
       { protocol: 'https', hostname: '**.wordpress.com' },
       { protocol: 'https', hostname: '**.wp.com' },
       { protocol: 'https', hostname: 'i0.wp.com' },
