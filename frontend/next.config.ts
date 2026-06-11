@@ -1,13 +1,11 @@
 import type { NextConfig } from "next";
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'https://ninejamoviesnet1.onrender.com/api';
-
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
         source: '/rss',
-        destination: `${BACKEND}/rss`,
+        destination: 'https://ninejamoviesnet.onrender.com/api/rss',
       },
     ];
   },
