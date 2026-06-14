@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from sqlalchemy.orm import selectinload
 from app.models.series import Series
 
 series_bp = Blueprint('series', __name__, url_prefix='/api')
@@ -8,7 +9,12 @@ def get_series():
     slim = request.args.get('slim', 'false').lower() == 'true'
 
     if 'page' not in request.args:
-        all_series = Series.query.order_by(Series.created_at.desc()).all()
+        all_series = (
+            Series.query
+            .options(selectinload(Series.episodes))
+            .order_by(Series.created_at.desc())
+            .all()
+        )
         return jsonify({
             'series':       [s.to_dict(slim=slim) for s in all_series],
             'total':        len(all_series),
@@ -20,8 +26,11 @@ def get_series():
 
     page     = request.args.get('page',     1,   type=int)
     per_page = request.args.get('per_page', 200, type=int)
-    paginated = Series.query.order_by(Series.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
+    paginated = (
+        Series.query
+        .options(selectinload(Series.episodes))
+        .order_by(Series.created_at.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
     )
     return jsonify({
         'series':       [s.to_dict(slim=slim) for s in paginated.items],
@@ -34,5 +43,5 @@ def get_series():
 
 @series_bp.route('/series/<slug>')
 def get_one_series(slug):
-    s = Series.query.filter_by(slug=slug).first_or_404()
+    s = Series.query.options(selectinload(Series.episodes)).filter_by(slug=slug).first_or_404()
     return jsonify(s.to_dict())
