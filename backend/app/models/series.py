@@ -1,7 +1,6 @@
 from flask import Blueprint, make_response
 from feedgen.feed import FeedGenerator
 from app.models.movie import Movie
-from app.models.series import Series
 from datetime import timezone, datetime
 
 rss_bp = Blueprint('rss', __name__, url_prefix='/api')
