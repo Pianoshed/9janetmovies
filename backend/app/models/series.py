@@ -1,54 +1,31 @@
-from flask import Blueprint, make_response
-from feedgen.feed import FeedGenerator
-from app.models.movie import Movie
-from datetime import timezone, datetime
+from app import db
+from datetime import datetime
 
-rss_bp = Blueprint('rss', __name__, url_prefix='/api')
+class Series(db.Model):
+    __tablename__ = 'series'
 
-@rss_bp.route('/rss')
-def rss_feed():
-    fg = FeedGenerator()
-    fg.id('https://9janetmovies.com.ng/')
-    fg.title('9janetmovies - Free Movie Downloads')
-    fg.link(href='https://9janetmovies.com.ng/', rel='alternate')
-    fg.link(href='https://9janetmovies.com.ng/rss', rel='self')
-    fg.description('Latest Nollywood, Hollywood, Korean and more movie downloads.')
-    fg.language('en')
+    id          = db.Column(db.Integer, primary_key=True)
+    title       = db.Column(db.String(200), nullable=False)
+    slug        = db.Column(db.String(220), unique=True, nullable=False)
+    poster_url  = db.Column(db.String(500))
+    genre       = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    episodes    = db.relationship('Episode', backref='series', lazy=True)
 
-    movies = Movie.query.order_by(Movie.created_at.desc()).limit(50).all()
-    series = Series.query.order_by(Series.created_at.desc()).limit(50).all()
+    def to_dict(self, slim=False):
+        data = {
+            'id':          self.id,
+            'title':       self.title,
+            'slug':        self.slug,
+            'poster_url':  self.poster_url,
+            'genre':       self.genre,
+            'description': self.description,
+            'created_at':  self.created_at.isoformat() if self.created_at else None,
+        }
+        if not slim:
+            data['episodes'] = [e.to_dict() for e in self.episodes]
+        return data
 
-    items = [('movie', m) for m in movies] + [('series', s) for s in series]
-
-    items.sort(
-        key=lambda x: x[1].created_at or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True
-    )
-    items = items[:50]
-
-    for item_type, item in items:
-        fe = fg.add_entry()
-
-        if item_type == 'series':
-            url = f'https://9janetmovies.com.ng/series/{item.slug}'
-            title = f'{item.title} [Series]'
-        else:
-            url = f'https://9janetmovies.com.ng/movie/{item.slug}'
-            title = f'{item.title} ({item.year})' if item.year else item.title
-
-        fe.id(url)
-        fe.title(title)
-        fe.link(href=url)
-        fe.category({'term': item.genre} if item.genre else {'term': item_type.capitalize()})
-
-        description = item.description or f'Download {item.title} free on 9janetmovies.'
-        if item.poster_url:
-            description = f'<img src="{item.poster_url}" alt="{item.title}"/><br/>{description}'
-        fe.description(description)
-
-        if item.created_at:
-            fe.pubDate(item.created_at.replace(tzinfo=timezone.utc))
-
-    response = make_response(fg.rss_str(pretty=True))
-    response.headers['Content-Type'] = 'application/rss+xml; charset=utf-8'
-    return response
+    def __repr__(self):
+        return f'<Series {self.title}>'
