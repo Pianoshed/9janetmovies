@@ -29,6 +29,7 @@ JAROCK_TIMEOUT   = int(os.getenv('JAROCK_TIMEOUT', 20))
 JAROCK_MAX_PAGES = int(os.getenv('JAROCK_MAX_PAGES', 10))
 
 SCRAPER_API_KEY  = os.getenv('SCRAPER_API_KEY', '')
+log.info(f"SCRAPER_API_KEY loaded: {'YES' if SCRAPER_API_KEY else 'NO'}")
 
 # Series categories only — skip movies
 SERIES_CATEGORIES = [
