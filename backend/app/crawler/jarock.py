@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 from app import db
 from app.models.series import Series
 from app.models.episode import Episode
+from app.models.movie import Movie
+from app.models.download_link import DownloadLink
 from app.crawler.dldownload import (
     slugify,
     tmdb_search,
@@ -43,6 +45,13 @@ SERIES_CATEGORIES = [
     'https://9jarocks.net/category/videodownload/ongoing',
 ]
 
+# Movie categories
+MOVIE_CATEGORIES = [
+    'https://9jarocks.net/category/videodownload/hollywood-movie',
+    'https://9jarocks.net/category/videodownload/foreign-movies',
+    'https://9jarocks.net/category/videodownload/nollywood-movie',
+]
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -66,6 +75,12 @@ _EP_RE = re.compile(
 
 # Matches season pack pages: "Show Name Season 3" with no episode number
 _SEASON_PACK_RE = re.compile(r'^(.+?)\s+[Ss]eason\s+(\d+)', re.IGNORECASE)
+
+# Matches a 4-digit release year, e.g. "Movie Title (2024)" or "Movie Title 2024 720p"
+_YEAR_RE = re.compile(r'(?:19|20)\d{2}')
+
+# Matches a resolution/quality token in a filename, e.g. 720p, 1080p, 480p, 2160p
+_QUALITY_RE = re.compile(r'\b(\d{3,4}p)\b', re.IGNORECASE)
 
 
 def _get(url):
@@ -136,6 +151,29 @@ def _parse_page_title(title):
     if m:
         return m.group(1).strip(), int(m.group(2))
     return title.strip(), 1
+
+
+def _parse_movie_title(title):
+    """
+    Strip a trailing/embedded year and junk like (2024) or [2024] from a movie
+    post title, returning (clean_title, year_or_None).
+    e.g. 'Inception (2010) 1080p' -> ('Inception', 2010)
+    """
+    year = None
+    m = _YEAR_RE.search(title)
+    if m:
+        year = int(m.group(0))
+
+    clean = title
+    clean = re.sub(r'[\(\[]?\s*(?:19|20)\d{2}\s*[\)\]]?', '', clean)
+    clean = re.sub(r'\s+', ' ', clean).strip(' -–([])')
+    return clean or title.strip(), year
+
+
+def _parse_quality_from_filename(filename):
+    """Pull a resolution/quality label like '720p' out of a filename, if present."""
+    m = _QUALITY_RE.search(filename)
+    return m.group(1) if m else None
 
 
 def _save_episode(show_title, season, episode, label, video_url):
@@ -213,8 +251,88 @@ def _save_episode(show_title, season, episode, label, video_url):
         log.error(f'  DB error for "{show_title} {label}": {exc}')
 
 
+def _save_movie(movie_title, year, label, video_url):
+    """Upsert a Movie by slug, then add a DownloadLink for it if not already present."""
+    if is_adult_content(movie_title, video_url):
+        log.info(f'  Blocked adult content: {movie_title!r}')
+        return
+
+    movie_slug = slugify(movie_title)
+    if not movie_slug or movie_slug == 'untitled':
+        log.warning(f'  Skipped — bad slug: {movie_title!r}')
+        return
+
+    search_q = clean_title_for_search(movie_title)
+    tmdb = tmdb_search(search_q, prefer_tv=False)
+
+    poster      = tmdb.get('poster')      if tmdb else None
+    description = tmdb.get('description') if tmdb else ''
+    genre       = (tmdb.get('genre') if tmdb else None) or detect_genre_from_title(movie_title)
+    tmdb_year   = tmdb.get('year') if tmdb else None
+
+    try:
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        stmt = pg_insert(Movie).values(
+            title       = movie_title,
+            slug        = movie_slug,
+            poster_url  = poster,
+            year        = year or tmdb_year,
+            genre       = genre,
+            description = description,
+        ).on_conflict_do_update(
+            index_elements=['slug'],
+            set_={
+                'poster_url': db.case(
+                    (Movie.poster_url == None, pg_insert(Movie).excluded.poster_url),
+                    (
+                        db.and_(
+                            Movie.poster_url.notlike('%image.tmdb.org%'),
+                            pg_insert(Movie).excluded.poster_url.like('%image.tmdb.org%'),
+                        ),
+                        pg_insert(Movie).excluded.poster_url,
+                    ),
+                    else_=Movie.poster_url,
+                ),
+                'description': db.case(
+                    (Movie.description == None, pg_insert(Movie).excluded.description),
+                    (Movie.description == '',   pg_insert(Movie).excluded.description),
+                    else_=Movie.description,
+                ),
+                'year': db.case(
+                    (Movie.year == None, pg_insert(Movie).excluded.year),
+                    else_=Movie.year,
+                ),
+            }
+        ).returning(Movie.id)
+
+        result   = db.session.execute(stmt)
+        db.session.commit()
+        movie_id = result.fetchone()[0]
+
+        existing = DownloadLink.query.filter_by(
+            movie_id=movie_id, url=video_url
+        ).first()
+
+        if not existing:
+            db.session.add(DownloadLink(
+                movie_id = movie_id,
+                label    = label,
+                url      = video_url,
+                host     = '9jaRocks',
+            ))
+            db.session.commit()
+            log.info(f'  ✓ {movie_title} ({year or "?"}) [{label}] | poster: {"✓" if poster else "✗"}')
+        else:
+            log.info(f'  Already exists: {movie_title} [{label}]')
+
+    except Exception as exc:
+        db.session.rollback()
+        log.error(f'  DB error for movie "{movie_title}": {exc}')
+
+
 def _crawl_post(post_url, page_title, processed):
-    """Scrape a single post page and save all DOWNLOAD links found."""
+    """Scrape a single series post page and save all DOWNLOAD links found."""
     if post_url in processed:
         return 0
 
@@ -252,10 +370,44 @@ def _crawl_post(post_url, page_title, processed):
     return saved
 
 
-def _crawl_category(cat_url, processed):
-    """Paginate through a category and crawl each post."""
+def _crawl_movie_post(post_url, page_title, processed):
+    """Scrape a single movie post page and save all DOWNLOAD links found as DownloadLinks."""
+    if post_url in processed:
+        return 0
+
+    r = _get(post_url)
+    if not r:
+        return 0
+
+    soup = BeautifulSoup(r.text, 'html.parser')
+    fallback_title, fallback_year = _parse_movie_title(page_title)
+    saved = 0
+
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        text = a.text.strip().upper()
+
+        # Only follow direct download links
+        if text != 'DOWNLOAD' and 'loadedfiles.org' not in href:
+            continue
+        if not href.startswith('http'):
+            continue
+
+        filename = href.rstrip('/').split('/')[-1]
+        quality  = _parse_quality_from_filename(filename) or 'Download'
+
+        _save_movie(fallback_title, fallback_year, quality, href)
+        saved += 1
+
+    _mark_url_processed(JAROCK_STATE, post_url)
+    return saved
+
+
+def _crawl_category(cat_url, processed, is_movie=False):
+    """Paginate through a category and crawl each post (series or movie)."""
     log.info(f'  Category: {cat_url}')
     total = 0
+    crawl_post_fn = _crawl_movie_post if is_movie else _crawl_post
 
     for page in range(1, JAROCK_MAX_PAGES + 1):
         url = cat_url if page == 1 else f'{cat_url}/page/{page}/'
@@ -287,7 +439,7 @@ def _crawl_category(cat_url, processed):
 
         log.info(f'    Page {page}: {len(unique_posts)} posts')
         for post_url, title in unique_posts:
-            saved = _crawl_post(post_url, title, processed)
+            saved = crawl_post_fn(post_url, title, processed)
             total += saved
 
     return total
@@ -299,6 +451,9 @@ def run_9jarocks_crawl():
 
     total = 0
     for cat_url in SERIES_CATEGORIES:
-        total += _crawl_category(cat_url, processed)
+        total += _crawl_category(cat_url, processed, is_movie=False)
 
-    log.info(f'═══ 9jaRocks crawl done: {total} episodes saved ═══')
+    for cat_url in MOVIE_CATEGORIES:
+        total += _crawl_category(cat_url, processed, is_movie=True)
+
+    log.info(f'═══ 9jaRocks crawl done: {total} items saved ═══')
