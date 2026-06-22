@@ -1153,8 +1153,8 @@ def run_crawl(
     include_loadedfiles=True,
     thenkiri_max=200,
     loadedfiles_max=200,
-    fetch_thenkiri_pages=False,
-    fetch_loadedfiles_pages=False,
+    fetch_thenkiri_pages=True,
+    fetch_loadedfiles_pages=True,
 ):
     from flask import current_app
     app = current_app._get_current_object()
