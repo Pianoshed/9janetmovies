@@ -649,13 +649,13 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
 
 def get_thenkiri_entries(max_urls=500, sitemaps=None):
     if sitemaps is None:
-        sitemaps = list(THENKIRI_SITEMAPS)
+        sitemaps = list(reversed(THENKIRI_SITEMAPS))
     return _get_entries_from_sitemaps(sitemaps, max_urls, 'thenkiri')
 
 
 def get_loadedfiles_entries(max_urls=500, sitemaps=None):
     if sitemaps is None:
-        sitemaps = list(LOADEDFILES_SITEMAPS)
+        sitemaps = list(reversed(LOADEDFILES_SITEMAPS))
     return _get_entries_from_sitemaps(sitemaps, max_urls, 'loadedfiles')
 
 
