@@ -175,20 +175,46 @@ URL_GENRE_MAP = {
     'web-series':     'Drama',
 }
 
-DEAD_POSTER_DOMAINS = [
+# FIX: These domains serve valid thumbnails from their own CDN.
+# We no longer block them outright — they're used as fallback when TMDB has no poster.
+# Only TMDB posters (image.tmdb.org) are treated as "preferred"; site CDN images are
+# acceptable fallbacks.
+SITE_CDN_DOMAINS = [
     'thenkiri.com',
     'nkiri.com',
     'loadedfiles.org',
 ]
 
-def _is_safe_poster(url):
+def _is_tmdb_poster(url):
+    """Return True if this is a high-quality TMDB poster."""
+    return bool(url and 'image.tmdb.org' in url)
+
+def _is_valid_poster(url):
+    """Return True if URL looks like a valid poster image at all."""
     if not url:
         return False
     url_lower = url.lower()
-    return not any(domain in url_lower for domain in DEAD_POSTER_DOMAINS)
+    IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
+    return (
+        url_lower.startswith('http')
+        and url_lower.endswith(IMAGE_EXTS)
+        and 'use-on-site' not in url_lower
+    )
 
-def _is_tmdb_poster(url):
-    return bool(url and 'image.tmdb.org' in url)
+def _best_poster(tmdb_poster, sitemap_poster, page_poster=None):
+    """
+    Pick the best available poster.
+    Priority: TMDB > page OG image > sitemap thumbnail
+    Any of these may be None.
+    """
+    for candidate in [tmdb_poster, page_poster, sitemap_poster]:
+        if candidate and _is_valid_poster(candidate):
+            return candidate
+    # Last resort: accept any non-None non-empty value
+    for candidate in [tmdb_poster, page_poster, sitemap_poster]:
+        if candidate:
+            return candidate
+    return None
 
 def detect_genre_from_url(url):
     url_lower = url.lower()
@@ -546,6 +572,11 @@ def get_dldownload_urls(max_urls=500):
 
 
 def _extract_poster_from_url_tag(url_tag, page_url):
+    """
+    Extract a poster/thumbnail URL from a sitemap <url> block.
+    Returns any valid image URL found — caller decides whether to prefer it
+    over a TMDB poster. We no longer filter by domain here.
+    """
     IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
 
     for img_tag in url_tag.find_all('image:loc'):
@@ -621,8 +652,11 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
                 if is_adult_content('', page_url):
                     continue
 
-                raw_poster = _extract_poster_from_url_tag(url_tag, page_url)
-                poster = raw_poster if _is_safe_poster(raw_poster) else None
+                # FIX: Accept ALL valid image URLs from the sitemap — including site CDN.
+                # TMDB will override this later if it finds a better poster.
+                poster = _extract_poster_from_url_tag(url_tag, page_url)
+                if poster and not _is_valid_poster(poster):
+                    poster = None  # drop malformed URLs, keep valid site CDN images
 
                 slug_part = page_url.rstrip('/').split('/')[-1]
                 raw_title = slug_part.replace('-', ' ').title()
@@ -692,12 +726,14 @@ def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
         if meta_desc:
             description = meta_desc.get('content', '')[:500]
 
+        # FIX: Collect poster from OG/Twitter tags — accept any valid image URL
+        # including from the site's own CDN. TMDB will override later.
         poster = None
         for attr in [{'property': 'og:image'}, {'name': 'twitter:image'}]:
             tag = soup.find('meta', attr)
             if tag:
                 img = tag.get('content', '').strip()
-                if img.startswith('http') and 'use-on-site' not in img and _is_safe_poster(img):
+                if img.startswith('http') and 'use-on-site' not in img:
                     poster = img
                     break
 
@@ -734,12 +770,21 @@ def save_series(data, tmdb, source='dldownload'):
 
     season, ep, is_full_season = extract_season_episode(raw_title)
 
-    poster      = (tmdb.get('poster') if tmdb else None) or data.get('poster')
+    # FIX: Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
+    poster = _best_poster(
+        tmdb.get('poster') if tmdb else None,
+        data.get('poster'),
+    )
     description = tmdb.get('description', '') if tmdb else ''
     genre = (
         (tmdb.get('genre') if tmdb else None)
         or detect_genre_from_url(data.get('url', ''))
         or detect_genre_from_title(series_title)
+    )
+
+    log.info(
+        f'  Poster source: {"TMDB" if _is_tmdb_poster(poster) else "site CDN" if poster else "none"} '
+        f'for "{series_title}"'
     )
 
     try:
@@ -858,7 +903,11 @@ def save_movie(data, tmdb, source='dldownload'):
     if is_adult_content(title, data.get('url', '')):
         return
 
-    poster      = (tmdb.get('poster') if tmdb else None) or data.get('poster')
+    # FIX: Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
+    poster = _best_poster(
+        tmdb.get('poster') if tmdb else None,
+        data.get('poster'),
+    )
     description = tmdb.get('description', '') if tmdb else ''
     genre = (
         (tmdb.get('genre') if tmdb else None)
@@ -869,6 +918,11 @@ def save_movie(data, tmdb, source='dldownload'):
         (tmdb.get('year') if tmdb else None)
         or detect_year_from_text(title, data.get('url', ''))
         or CURRENT_YEAR
+    )
+
+    log.info(
+        f'  Poster source: {"TMDB" if _is_tmdb_poster(poster) else "site CDN" if poster else "none"} '
+        f'for "{title}"'
     )
 
     HOST_LABELS = {
@@ -975,8 +1029,9 @@ def _run_sitemap_crawl(
     for i, entry in enumerate(entries, 1):
         log.info(f'[{i}/{len(entries)}] {entry["url"]}')
 
-        title  = entry['title']
-        poster = entry['poster']
+        title         = entry['title']
+        sitemap_poster = entry['poster']   # may be a site CDN image — that's fine now
+        page_poster   = None
 
         if fetch_pages:
             page_data = scrape_page_fn(entry['url'])
@@ -987,7 +1042,7 @@ def _run_sitemap_crawl(
             if page_data.get('title'):
                 title = clean_movie_title(page_data['title'])
             if page_data.get('poster'):
-                poster = page_data['poster']
+                page_poster = page_data['poster']
             if page_data.get('description'):
                 entry['description'] = page_data['description']
             time.sleep(sleep_page)
@@ -1009,12 +1064,22 @@ def _run_sitemap_crawl(
         year = detect_year_from_text(title, entry['url'])
         tmdb = tmdb_search(search_title, year=year, prefer_tv=title_is_series)
 
-        if tmdb and not tmdb.get('poster') and poster:
-            tmdb['poster'] = poster
-        elif not tmdb:
+        # FIX: Build the best available poster from all three sources.
+        # TMDB wins if found; page OG image is second; sitemap thumbnail is fallback.
+        best_poster = _best_poster(
+            tmdb.get('poster') if tmdb else None,
+            sitemap_poster,
+            page_poster,
+        )
+
+        if tmdb:
+            # Patch TMDB dict so save_movie/save_series sees the best poster
+            if not tmdb.get('poster') and best_poster:
+                tmdb['poster'] = best_poster
+        else:
             tmdb = {
-                'poster':      poster,
-                'description': '',
+                'poster':      best_poster,
+                'description': entry.get('description', ''),
                 'genre':       (
                     detect_genre_from_url(entry['url'])
                     or detect_genre_from_title(title)
@@ -1024,13 +1089,13 @@ def _run_sitemap_crawl(
 
         log.info(
             f'  TMDB: {"found" if tmdb else "not found"} '
-            f'| poster: {"✓" if tmdb and tmdb.get("poster") else "✗"}'
+            f'| poster: {"TMDB ✓" if _is_tmdb_poster(tmdb.get("poster")) else "site CDN ✓" if tmdb.get("poster") else "✗"}'
         )
 
         data = {
             'title':  search_title,
             'url':    entry['url'],
-            'poster': poster,
+            'poster': best_poster,
             'links':  []
         }
 
@@ -1120,7 +1185,8 @@ def run_dldownload_crawl(max_urls=100):
     )
 
 
-def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
+# FIX: Default fetch_pages=True so page OG images are always retrieved
+def run_thenkiri_crawl(max_urls=200, fetch_pages=True):
     _run_sitemap_crawl(
         source_name    = 'thenkiri',
         state_file     = THENKIRI_STATE,
@@ -1133,7 +1199,8 @@ def run_thenkiri_crawl(max_urls=200, fetch_pages=False):
     )
 
 
-def run_loadedfiles_crawl(max_urls=200, fetch_pages=False):
+# FIX: Default fetch_pages=True so page OG images are always retrieved
+def run_loadedfiles_crawl(max_urls=200, fetch_pages=True):
     _run_sitemap_crawl(
         source_name    = 'loadedfiles',
         state_file     = LOADEDFILES_STATE,
