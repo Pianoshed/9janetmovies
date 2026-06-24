@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app.models.movie import Movie
-from app import db
+from app import db, cache
 
 genres_bp = Blueprint('genres', __name__, url_prefix='/api')
 
@@ -39,11 +39,13 @@ GENRE_ALIASES = {
 
 
 @genres_bp.route('/genres')
+@cache.cached(timeout=600)  # cache genre list for 10 mins
 def get_genres():
     return jsonify(GENRES)
 
 
 @genres_bp.route('/genres/<genre>')
+@cache.cached(timeout=300, query_string=True)  # cache per genre+page for 5 mins
 def get_by_genre(genre):
     page = request.args.get('page', 1, type=int)
 
@@ -85,6 +87,10 @@ def normalize_genres():
             fixed += 1
 
     db.session.commit()
+
+    # Clear genre cache after normalization so fresh data is served
+    cache.clear()
+
     return jsonify({'status': 'ok', 'fixed': fixed})
 
 

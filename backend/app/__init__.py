@@ -7,11 +7,14 @@ from flask_cors import CORS
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_caching import Cache
 
 logging.getLogger('flask-limiter').setLevel(logging.CRITICAL)
+
 db = SQLAlchemy()
 migrate = Migrate()
 mail = Mail()
+cache = Cache()
 
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY")
 
@@ -39,10 +42,15 @@ def create_app():
     app.config['MAIL_PASSWORD']       = os.environ.get('MAIL_PASSWORD')
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
+    # Cache config — SimpleCache is in-memory, fine for single-instance Render deployments
+    app.config['CACHE_TYPE']            = 'SimpleCache'
+    app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5 minutes default
+
     db.init_app(app)
     migrate.init_app(app, db)
     mail.init_app(app)
     limiter.init_app(app)
+    cache.init_app(app)
 
     CORS(app, origins=[
         "http://localhost:3000",
@@ -69,7 +77,7 @@ def create_app():
     from app.routes.genres import genres_bp
     from app.routes.trending import trending_bp
     from app.routes.mail import mail_bp
-    from app.routes.rss import rss_bp  
+    from app.routes.rss import rss_bp
 
     app.register_blueprint(blog_bp)
     app.register_blueprint(crawler_bp)
