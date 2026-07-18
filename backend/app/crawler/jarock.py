@@ -30,6 +30,12 @@ JAROCK_DELAY     = float(os.getenv('JAROCK_DELAY', 1.5))
 JAROCK_TIMEOUT   = int(os.getenv('JAROCK_TIMEOUT', 20))
 JAROCK_MAX_PAGES = int(os.getenv('JAROCK_MAX_PAGES', 10))
 
+# --- new: retry / backoff tuning ---
+JAROCK_DIRECT_RETRIES = int(os.getenv('JAROCK_DIRECT_RETRIES', 1))   # attempts before falling back to proxy
+JAROCK_PROXY_RETRIES  = int(os.getenv('JAROCK_PROXY_RETRIES', 2))    # attempts against ScraperAPI
+JAROCK_PROXY_TIMEOUT  = int(os.getenv('JAROCK_PROXY_TIMEOUT', 60))   # ScraperAPI can be slow (JS render, retries)
+JAROCK_BACKOFF_BASE   = float(os.getenv('JAROCK_BACKOFF_BASE', 3.0))  # seconds, doubles each retry
+
 SCRAPER_API_KEY  = os.getenv('SCRAPER_API_KEY', '')
 log.info(f"SCRAPER_API_KEY loaded: {'YES' if SCRAPER_API_KEY else 'NO'}")
 
@@ -83,45 +89,74 @@ _YEAR_RE = re.compile(r'(?:19|20)\d{2}')
 _QUALITY_RE = re.compile(r'\b(\d{3,4}p)\b', re.IGNORECASE)
 
 
+def _is_dns_failure(exc):
+    """True if this exception is a DNS/NameResolutionError rather than a timeout/connection reset."""
+    msg = str(exc)
+    return 'NameResolutionError' in msg or 'Failed to resolve' in msg
+
+
 def _get(url):
     """
-    Try direct request first. On 403/ConnectionError, fall back to ScraperAPI
-    if SCRAPER_API_KEY is set, otherwise log and return None.
+    Try direct request first (with a couple of quick retries — worth doing since
+    DNS/connection blips are often transient). On repeated failure or a block
+    status code, fall back to ScraperAPI with its own retries and a longer
+    timeout, since ScraperAPI itself is often slow to come back on tougher pages.
     """
     time.sleep(JAROCK_DELAY)
 
-    # --- Direct attempt ---
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=JAROCK_TIMEOUT)
-        if r.status_code == 200:
-            return r
-        if r.status_code not in (403, 429, 503):
-            r.raise_for_status()
-        log.warning(f'Direct request blocked ({r.status_code}) for {url!r} — trying proxy')
-    except requests.exceptions.RequestException as exc:
-        log.warning(f'Direct request failed for {url!r}: {exc} — trying proxy')
+    # --- Direct attempts ---
+    last_dns_failure = False
+    for attempt in range(1, JAROCK_DIRECT_RETRIES + 1):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=JAROCK_TIMEOUT)
+            if r.status_code == 200:
+                return r
+            if r.status_code not in (403, 429, 503):
+                r.raise_for_status()
+            log.warning(f'Direct request blocked ({r.status_code}) for {url!r} — trying proxy')
+            break  # a block status code won't fix itself with a same-path retry
+        except requests.exceptions.RequestException as exc:
+            last_dns_failure = _is_dns_failure(exc)
+            log.warning(
+                f'Direct request failed for {url!r} (attempt {attempt}/{JAROCK_DIRECT_RETRIES}): {exc}'
+            )
+            if attempt < JAROCK_DIRECT_RETRIES:
+                time.sleep(JAROCK_BACKOFF_BASE * attempt)
 
-    # --- ScraperAPI fallback ---
+    if last_dns_failure:
+        log.warning(f'Direct DNS resolution failing for {url!r} — trying proxy')
+    else:
+        log.warning(f'Direct request exhausted for {url!r} — trying proxy')
+
+    # --- ScraperAPI fallback, with its own retries ---
     if not SCRAPER_API_KEY:
         log.error(f'No SCRAPER_API_KEY set; cannot bypass block for {url!r}')
         return None
 
-    try:
-        proxy = f'http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001'
-        proxies = {'http': proxy, 'https': proxy}
-        r = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=JAROCK_TIMEOUT + 15,
-            proxies=proxies,
-            verify=False,
-        )
-        r.raise_for_status()
-        log.info(f'ScraperAPI succeeded for {url!r}')
-        return r
-    except Exception as exc:
-        log.error(f'ScraperAPI also failed for {url!r}: {exc}')
-        return None
+    proxy = f'http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001'
+    proxies = {'http': proxy, 'https': proxy}
+
+    for attempt in range(1, JAROCK_PROXY_RETRIES + 1):
+        try:
+            r = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=JAROCK_PROXY_TIMEOUT,
+                proxies=proxies,
+                verify=False,
+            )
+            r.raise_for_status()
+            log.info(f'ScraperAPI succeeded for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES})')
+            return r
+        except Exception as exc:
+            log.error(
+                f'ScraperAPI failed for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES}): {exc}'
+            )
+            if attempt < JAROCK_PROXY_RETRIES:
+                time.sleep(JAROCK_BACKOFF_BASE * attempt)
+
+    log.error(f'ScraperAPI exhausted retries for {url!r} — giving up')
+    return None
 
 
 def _parse_episode_from_filename(filename):
