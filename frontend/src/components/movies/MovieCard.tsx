@@ -9,6 +9,20 @@ interface Props {
     movie: Movie
 }
 
+// Sources known to block Next.js's server-side image-optimization fetch
+// (likely hotlink/anti-scraping protection based on request headers).
+// For these, we skip optimization so the browser fetches the image directly.
+const UNOPTIMIZED_HOSTS = ['thenkiri.com', 'dldownload.com.ng']
+
+function shouldSkipOptimization(url: string): boolean {
+    try {
+        const hostname = new URL(url).hostname
+        return UNOPTIMIZED_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`))
+    } catch {
+        return false
+    }
+}
+
 export default function MovieCard({ movie }: Props) {
     const [imgError, setImgError] = useState(false)
 
@@ -32,6 +46,7 @@ export default function MovieCard({ movie }: Props) {
                             src={movie.poster_url}
                             alt={movie.title}
                             fill
+                            unoptimized={shouldSkipOptimization(movie.poster_url)}
                             sizes="(max-width: 360px) 45vw, (max-width: 480px) 45vw, (max-width: 700px) 30vw, 160px"
                             style={{ objectFit: 'cover' }}
                             loading="lazy"
