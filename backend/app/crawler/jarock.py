@@ -191,7 +191,9 @@ def _parse_page_title(title):
 def _parse_movie_title(title):
     """
     Strip a trailing/embedded year and junk like (2024) or [2024] from a movie
-    post title, returning (clean_title, year_or_None).
+    post title, returning (clean_title, year_or_None). Quality tokens like
+    720p/1080p are stripped too, so different-quality posts for the same film
+    collapse onto the same slug instead of creating duplicate Movie rows.
     e.g. 'Inception (2010) 1080p' -> ('Inception', 2010)
     """
     year = None
@@ -201,6 +203,7 @@ def _parse_movie_title(title):
 
     clean = title
     clean = re.sub(r'[\(\[]?\s*(?:19|20)\d{2}\s*[\)\]]?', '', clean)
+    clean = _QUALITY_RE.sub('', clean)
     clean = re.sub(r'\s+', ' ', clean).strip(' -–([])')
     return clean or title.strip(), year
 
