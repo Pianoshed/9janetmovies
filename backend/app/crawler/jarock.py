@@ -32,12 +32,13 @@ JAROCK_MAX_PAGES = int(os.getenv('JAROCK_MAX_PAGES', 10))
 
 # --- new: retry / backoff tuning ---
 JAROCK_DIRECT_RETRIES = int(os.getenv('JAROCK_DIRECT_RETRIES', 1))   # attempts before falling back to proxy
-JAROCK_PROXY_RETRIES  = int(os.getenv('JAROCK_PROXY_RETRIES', 2))    # attempts against ScraperAPI
-JAROCK_PROXY_TIMEOUT  = int(os.getenv('JAROCK_PROXY_TIMEOUT', 60))   # ScraperAPI can be slow (JS render, retries)
+JAROCK_PROXY_RETRIES  = int(os.getenv('JAROCK_PROXY_RETRIES', 2))    # attempts against ScrapingDog
+JAROCK_PROXY_TIMEOUT  = int(os.getenv('JAROCK_PROXY_TIMEOUT', 60))   # ScrapingDog retries server-side for up to 60s
 JAROCK_BACKOFF_BASE   = float(os.getenv('JAROCK_BACKOFF_BASE', 3.0))  # seconds, doubles each retry
 
-SCRAPER_API_KEY  = os.getenv('SCRAPER_API_KEY', '')
-log.info(f"SCRAPER_API_KEY loaded: {'YES' if SCRAPER_API_KEY else 'NO'}")
+SCRAPINGDOG_API_KEY = os.getenv('SCRAPINGDOG_API_KEY', '')
+SCRAPINGDOG_DYNAMIC = os.getenv('SCRAPINGDOG_DYNAMIC', 'false')  # 'true' enables JS rendering (costs more credits)
+log.info(f"SCRAPINGDOG_API_KEY loaded: {'YES' if SCRAPINGDOG_API_KEY else 'NO'}")
 
 # Series categories only — skip movies
 SERIES_CATEGORIES = [
@@ -99,8 +100,9 @@ def _get(url):
     """
     Try direct request first (with a couple of quick retries — worth doing since
     DNS/connection blips are often transient). On repeated failure or a block
-    status code, fall back to ScraperAPI with its own retries and a longer
-    timeout, since ScraperAPI itself is often slow to come back on tougher pages.
+    status code, fall back to ScrapingDog with its own retries and a longer
+    timeout, since ScrapingDog itself can take a while to come back on tougher
+    pages (it retries server-side for up to 60s before giving up).
     """
     time.sleep(JAROCK_DELAY)
 
@@ -128,34 +130,41 @@ def _get(url):
     else:
         log.warning(f'Direct request exhausted for {url!r} — trying proxy')
 
-    # --- ScraperAPI fallback, with its own retries ---
-    if not SCRAPER_API_KEY:
-        log.error(f'No SCRAPER_API_KEY set; cannot bypass block for {url!r}')
+    # --- ScrapingDog fallback, with its own retries ---
+    # ScrapingDog isn't a proxy you route requests through — it's a GET endpoint
+    # that fetches the target URL server-side and hands back the raw HTML.
+    if not SCRAPINGDOG_API_KEY:
+        log.error(f'No SCRAPINGDOG_API_KEY set; cannot bypass block for {url!r}')
         return None
 
-    proxy = f'http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001'
-    proxies = {'http': proxy, 'https': proxy}
+    sd_url = 'https://api.scrapingdog.com/scrape'
+    sd_params = {
+        'api_key': SCRAPINGDOG_API_KEY,
+        'url': url,
+        'dynamic': SCRAPINGDOG_DYNAMIC,
+    }
 
     for attempt in range(1, JAROCK_PROXY_RETRIES + 1):
         try:
-            r = requests.get(
-                url,
-                headers=HEADERS,
-                timeout=JAROCK_PROXY_TIMEOUT,
-                proxies=proxies,
-                verify=False,
-            )
+            r = requests.get(sd_url, params=sd_params, timeout=JAROCK_PROXY_TIMEOUT)
+            # ScrapingDog returns 410 if it couldn't fetch the page within its own
+            # 60s retry window — you aren't charged for that one, safe to retry.
+            if r.status_code == 410:
+                log.warning(f'ScrapingDog returned 410 (unfetchable) for {url!r} — retrying')
+                if attempt < JAROCK_PROXY_RETRIES:
+                    time.sleep(JAROCK_BACKOFF_BASE * attempt)
+                continue
             r.raise_for_status()
-            log.info(f'ScraperAPI succeeded for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES})')
+            log.info(f'ScrapingDog succeeded for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES})')
             return r
         except Exception as exc:
             log.error(
-                f'ScraperAPI failed for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES}): {exc}'
+                f'ScrapingDog failed for {url!r} (attempt {attempt}/{JAROCK_PROXY_RETRIES}): {exc}'
             )
             if attempt < JAROCK_PROXY_RETRIES:
                 time.sleep(JAROCK_BACKOFF_BASE * attempt)
 
-    log.error(f'ScraperAPI exhausted retries for {url!r} — giving up')
+    log.error(f'ScrapingDog exhausted retries for {url!r} — giving up')
     return None
 
 
