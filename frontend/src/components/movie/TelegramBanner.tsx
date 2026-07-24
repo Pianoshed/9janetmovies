@@ -2,7 +2,7 @@ interface Props {
     channelUrl?: string
 }
 
-export default function TelegramBanner({ channelUrl = 'https://t.me/+wp4i2zw2UMJhOWJk' }: Props) {
+export default function TelegramBanner({ channelUrl = 'https://t.me/naijanetmovies' }: Props) {
     return (
         <div style={{
             background: '#e7f6fd',
