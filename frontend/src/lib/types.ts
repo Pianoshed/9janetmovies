@@ -16,6 +16,8 @@ export interface Movie {
     badge: 'NEW' | 'HOT' | 'CAM' | 'HD' | '' | null
     created_at: string
     links: DownloadLink[]
+    rating?: number
+    rating_count?: number
 }
 
 export interface Series {

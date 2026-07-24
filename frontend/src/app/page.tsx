@@ -8,6 +8,7 @@ import Pagination from '@/components/movies/Pagination'
 import FilterBar from '@/components/movies/FilterBar'
 import BlogSection from '@/components/blog/BlogSection'
 
+
 export default async function Home() {
   const [data, trending, series] = await Promise.all([
     getMovies(1),

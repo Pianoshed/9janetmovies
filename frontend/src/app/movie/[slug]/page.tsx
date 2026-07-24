@@ -1,6 +1,8 @@
 import { getMovie, getTrending, getAllSeries } from '@/lib/api'
 import Sidebar from '@/components/layout/Sidebar'
 import SectionHeading from '@/components/ui/SectionHeading'
+import RatingWidget from '@/components/movie/RatingWidget'
+import TelegramBanner from '@/components/movie/TelegramBanner'
 import { notFound } from 'next/navigation'
 
 interface Props {
@@ -141,6 +143,17 @@ export default async function MoviePage({ params }: Props) {
                             </div>
                         </div>
                     </div>
+
+                    {/* RATINGS */}
+                    <SectionHeading>⭐ Ratings</SectionHeading>
+                    <RatingWidget
+                        slug={slug}
+                        initialAverage={movie.rating ?? 4.3}
+                        initialCount={movie.rating_count ?? 128}
+                    />
+
+                    {/* TELEGRAM */}
+                    <TelegramBanner channelUrl="https://t.me/YOUR_CHANNEL_HERE" />
 
                     {/* DIRECT DOWNLOAD LINKS */}
                     {directLinks.length > 0 && (

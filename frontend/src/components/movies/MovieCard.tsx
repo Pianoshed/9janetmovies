@@ -66,6 +66,26 @@ export default function MovieCard({ movie }: Props) {
                             🎬
                         </div>
                     )}
+
+                    {/* RATING BADGE */}
+                    {typeof movie.rating === 'number' && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            background: 'rgba(0,0,0,0.72)',
+                            color: '#f5a623',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                        }}>
+                            ★ {movie.rating.toFixed(1)}
+                        </div>
+                    )}
                 </div>
 
                 {/* BODY */}

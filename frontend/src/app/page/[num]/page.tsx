@@ -6,6 +6,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import SectionHeading from '@/components/ui/SectionHeading'
 import Pagination from '@/components/movies/Pagination'
 import FilterBar from '@/components/movies/FilterBar'
+import TelegramBanner from '@/components/movie/TelegramBanner'
 import { redirect } from 'next/navigation'
 
 interface Props {
@@ -39,6 +40,9 @@ export default async function PageNum({ params }: Props) {
                     <Suspense fallback={<div>Loading filters...</div>}>
                         <FilterBar />
                     </Suspense>
+
+                    <TelegramBanner channelUrl="https://t.me/YOUR_CHANNEL_HERE" />
+
                     <MovieGrid movies={data.movies} />
                     <Pagination current={page} total={data.pages} basePath="page" />
                 </main>
