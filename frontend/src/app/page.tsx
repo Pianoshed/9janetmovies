@@ -33,7 +33,7 @@ export default async function Home() {
             <FilterBar />
           </Suspense>
 
-          <TelegramBanner channelUrl="https://t.me/YOUR_CHANNEL_HERE" />
+          <TelegramBanner channelUrl="https://t.me/naijanetmovies" />
 
           <MovieGrid movies={data.movies} />
           <Pagination current={1} total={data.pages} basePath="page" />

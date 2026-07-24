@@ -153,7 +153,7 @@ export default async function MoviePage({ params }: Props) {
                     />
 
                     {/* TELEGRAM */}
-                    <TelegramBanner channelUrl="https://t.me/YOUR_CHANNEL_HERE" />
+                    <TelegramBanner channelUrl="https://t.me/naijanetmovies" />
 
                     {/* DIRECT DOWNLOAD LINKS */}
                     {directLinks.length > 0 && (
