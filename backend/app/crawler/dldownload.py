@@ -65,7 +65,10 @@ HEADERS = {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 (KHTML, like Gecko) '
         'Chrome/120.0.0.0 Safari/537.36'
-    )
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive',
 }
 
 ADULT_KEYWORDS = [
@@ -100,7 +103,7 @@ def _make_session():
     retry = Retry(
         total=3,
         backoff_factor=1.5,
-        status_forcelist=[429, 500, 502, 503, 504],
+        status_forcelist=[403, 429, 500, 502, 503, 504],
         allowed_methods=['GET'],
         raise_on_status=False,
     )
@@ -1013,7 +1016,8 @@ def _run_sitemap_crawl(
     total_movies  = 0
     total_series  = 0
     total_skipped = 0
-    total_blocked = 0
+    total_adult_blocked = 0
+    total_page_fetch_failed = 0   # NEW: pages Cloudflare/anti-bot blocked (non-fatal)
 
     processed = _load_processed_urls(state_file)
     log.info(f'Already processed: {len(processed)} URLs')
@@ -1029,26 +1033,29 @@ def _run_sitemap_crawl(
     for i, entry in enumerate(entries, 1):
         log.info(f'[{i}/{len(entries)}] {entry["url"]}')
 
-        title         = entry['title']
-        sitemap_poster = entry['poster']   # may be a site CDN image — that's fine now
-        page_poster   = None
+        title          = entry['title']
+        sitemap_poster = entry['poster']
+        page_poster    = None
 
         if fetch_pages:
             page_data = scrape_page_fn(entry['url'])
             if page_data is None:
-                total_blocked += 1
-                _mark_url_processed(state_file, entry['url'])
-                continue
-            if page_data.get('title'):
-                title = clean_movie_title(page_data['title'])
-            if page_data.get('poster'):
-                page_poster = page_data['poster']
-            if page_data.get('description'):
-                entry['description'] = page_data['description']
+                # Page-level request was blocked/failed (Cloudflare, 403, timeout, etc.)
+                # Don't discard the entry — fall back to sitemap-derived title/poster,
+                # exactly what fetch_pages=False would have used for this entry.
+                total_page_fetch_failed += 1
+                log.warning(f'  Page fetch blocked/failed — using sitemap data instead: {entry["url"]}')
+            else:
+                if page_data.get('title'):
+                    title = clean_movie_title(page_data['title'])
+                if page_data.get('poster'):
+                    page_poster = page_data['poster']
+                if page_data.get('description'):
+                    entry['description'] = page_data['description']
             time.sleep(sleep_page)
 
         if is_adult_content(title, entry['url']):
-            total_blocked += 1
+            total_adult_blocked += 1
             _mark_url_processed(state_file, entry['url'])
             continue
 
@@ -1064,8 +1071,6 @@ def _run_sitemap_crawl(
         year = detect_year_from_text(title, entry['url'])
         tmdb = tmdb_search(search_title, year=year, prefer_tv=title_is_series)
 
-        # FIX: Build the best available poster from all three sources.
-        # TMDB wins if found; page OG image is second; sitemap thumbnail is fallback.
         best_poster = _best_poster(
             tmdb.get('poster') if tmdb else None,
             sitemap_poster,
@@ -1073,7 +1078,6 @@ def _run_sitemap_crawl(
         )
 
         if tmdb:
-            # Patch TMDB dict so save_movie/save_series sees the best poster
             if not tmdb.get('poster') and best_poster:
                 tmdb['poster'] = best_poster
         else:
@@ -1089,7 +1093,7 @@ def _run_sitemap_crawl(
 
         log.info(
             f'  TMDB: {"found" if tmdb else "not found"} '
-            f'| poster: {"TMDB ✓" if _is_tmdb_poster(tmdb.get("poster")) else "site CDN ✓" if tmdb.get("poster") else "✗"}'
+            f'| poster: {"TMDB \u2713" if _is_tmdb_poster(tmdb.get("poster")) else "site CDN \u2713" if tmdb.get("poster") else "\u2717"}'
         )
 
         data = {
@@ -1112,7 +1116,8 @@ def _run_sitemap_crawl(
     log.info(
         f'{source_name} done: {total_movies} movies | '
         f'{total_series} series | {total_skipped} skipped | '
-        f'{total_blocked} adult blocked'
+        f'{total_adult_blocked} adult blocked | '
+        f'{total_page_fetch_failed} page fetches blocked (fell back to sitemap data)'
     )
 
 
