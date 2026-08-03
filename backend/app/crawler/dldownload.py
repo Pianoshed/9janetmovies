@@ -1001,6 +1001,89 @@ def save_movie(data, tmdb, source='dldownload'):
         db.session.rollback()
         log.error(f'  DB error saving movie "{title}": {e}')
 
+def _find_dldownload_url(title):
+    """Scan all dldownload sdm_downloads sitemaps for a URL whose slug matches the title."""
+    target_slug = slugify(title)
+
+    index_res = _safe_get(f'{DLDOWNLOAD_BASE}/wp-sitemap.xml', timeout=15)
+    sitemap_urls = [f'{DLDOWNLOAD_BASE}/wp-sitemap-posts-sdm_downloads-1.xml']  # fallback
+    if index_res:
+        idx_soup = BeautifulSoup(index_res.text, 'xml')
+        found = [loc.text.strip() for loc in idx_soup.find_all('loc') if 'sdm_downloads' in loc.text]
+        if found:
+            sitemap_urls = found
+
+    matches = []
+    for sm_url in sitemap_urls:
+        res = _safe_get(sm_url, timeout=15)
+        if not res:
+            continue
+        soup = BeautifulSoup(res.text, 'xml')
+        for loc in soup.find_all('loc'):
+            page_url = loc.text.strip()
+            slug_part = page_url.rstrip('/').split('/')[-1]
+            url_slug = slugify(slug_part.replace('-', ' '))
+            if target_slug in url_slug or url_slug in target_slug:
+                matches.append(page_url)
+        time.sleep(SLEEP_SITEMAP)
+
+    return matches
+
+
+def crawl_single_movie_dldownload(title=None, post_url=None, force=True):
+    """
+    Backfill one movie from dldownload: pass a title to scan the sitemap for
+    a matching slug, or a post_url directly if you already have it.
+    force=True bypasses DLDOWNLOAD_STATE so an already-attempted (empty)
+    post gets re-scraped.
+    """
+    processed = set() if force else _load_processed_urls(DLDOWNLOAD_STATE)
+
+    if post_url:
+        candidates = [post_url]
+    else:
+        if not title:
+            log.error('crawl_single_movie_dldownload needs a title or post_url')
+            return 0
+        candidates = _find_dldownload_url(title)
+        if not candidates:
+            log.warning(f'No dldownload sitemap entry matched {title!r}')
+            return 0
+
+    total = 0
+    for url in candidates:
+        if url in processed:
+            log.info(f'  Already processed, skipping: {url}')
+            continue
+
+        data = scrape_dldownload_page(url)
+        if not data:
+            log.warning(f'  Could not scrape: {url}')
+            continue
+        if not data['links']:
+            log.warning(f'  No download links found on page: {url}')
+            _mark_url_processed(DLDOWNLOAD_STATE, url)
+            continue
+
+        title_is_series = is_series(data['title'])
+        year = detect_year_from_text(data['title'], url)
+        tmdb = tmdb_search(
+            clean_series_title(data['title']) if title_is_series else data['title'],
+            year=year,
+            prefer_tv=title_is_series
+        )
+
+        if title_is_series:
+            save_series(data, tmdb, source='dldownload')
+        else:
+            save_movie(data, tmdb, source='dldownload')
+
+        _mark_url_processed(DLDOWNLOAD_STATE, url)
+        total += 1
+        log.info(f'  ✓ Backfilled: {data["title"]} ({url})')
+
+    return total
+
 
 def _run_sitemap_crawl(
     source_name,
