@@ -25,6 +25,8 @@ def reset_crawl_state():
         return jsonify({'error': 'Unauthorized'}), 401
 
     from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE
+    from app.crawler.thenkiri import run_thenkiri_crawl 
+    from app.crawler.thenkiri import crawl_single_movie_thenkiri 
     from app.crawler.jarock import JAROCK_STATE
 
     for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE, JAROCK_STATE]:
@@ -130,25 +132,6 @@ def trigger_9jarocks_single_movie():
         title=title, post_url=post_url, force=force)
     return jsonify({'status': f'9jaRocks single-movie crawl started for {title or post_url}'}), 200
 
-@crawler_bp.route('/api/crawl/dldownload/movie', methods=['POST'])
-def trigger_dldownload_single_movie():
-    if not _auth(request):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    data     = request.get_json(silent=True) or {}
-    title    = request.args.get('title') or data.get('title')
-    post_url = request.args.get('url') or data.get('url')
-    force    = request.args.get('force', data.get('force', 'true'))
-    force    = str(force).lower() != 'false'
-
-    if not title and not post_url:
-        return jsonify({'error': 'Provide a title or url'}), 400
-
-    from app.crawler.dldownload import crawl_single_movie_dldownload
-
-    _thread(current_app._get_current_object(), crawl_single_movie_dldownload,
-        title=title, post_url=post_url, force=force)
-    return jsonify({'status': f'DLDownload single-movie crawl started for {title or post_url}'}), 200
 
 @crawler_bp.route('/api/crawl/blog', methods=['POST'])
 def trigger_blog_crawl():

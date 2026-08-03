@@ -28,36 +28,13 @@ log = logging.getLogger(__name__)
 CURRENT_YEAR = datetime.now().year
 
 DLDOWNLOAD_BASE  = 'https://dldownload.com.ng'
-THENKIRI_BASE    = 'https://thenkiri.com'
-LOADEDFILES_BASE = 'https://loadedfiles.org'
 
-THENKIRI_SITEMAPS = [
-    'https://thenkiri.com/post-sitemap.xml',
-    'https://thenkiri.com/post-sitemap2.xml',
-    'https://thenkiri.com/post-sitemap3.xml',
-    'https://thenkiri.com/post-sitemap4.xml',
-    'https://thenkiri.com/post-sitemap5.xml',
-    'https://thenkiri.com/post-sitemap6.xml',
-    'https://thenkiri.com/post-sitemap7.xml',
-]
-
-LOADEDFILES_SITEMAPS = [
-    'https://loadedfiles.org/post-sitemap.xml',
-    'https://loadedfiles.org/post-sitemap2.xml',
-    'https://loadedfiles.org/post-sitemap3.xml',
-    'https://loadedfiles.org/post-sitemap4.xml',
-    'https://loadedfiles.org/post-sitemap5.xml',
-]
 
 TMDB_KEY  = os.getenv('TMDB_API_KEY')
 TMDB_BASE = 'https://api.themoviedb.org/3'
 TMDB_IMG  = 'https://image.tmdb.org/t/p/w500'
 
 SLEEP_DLDOWNLOAD      = float(os.getenv('SLEEP_DLDOWNLOAD', 0.8))
-SLEEP_THENKIRI_LOOP   = float(os.getenv('SLEEP_THENKIRI_LOOP', 0.3))
-SLEEP_THENKIRI_PAGE   = float(os.getenv('SLEEP_THENKIRI_PAGE', 0.5))
-SLEEP_LOADEDFILES_LOOP = float(os.getenv('SLEEP_LOADEDFILES_LOOP', 0.4))
-SLEEP_LOADEDFILES_PAGE = float(os.getenv('SLEEP_LOADEDFILES_PAGE', 0.6))
 SLEEP_SITEMAP         = float(os.getenv('SLEEP_SITEMAP', 0.5))
 
 HEADERS = {
@@ -751,14 +728,6 @@ def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
         return None
 
 
-def scrape_thenkiri_page(url):
-    return _scrape_generic_wp_page(url, 'thenkiri')
-
-
-def scrape_loadedfiles_page(url):
-    return _scrape_generic_wp_page(url, 'loadedfiles')
-
-
 def save_series(data, tmdb, source='dldownload'):
     raw_title    = data['title']
     series_title = clean_series_title(raw_title) or raw_title
@@ -1273,43 +1242,10 @@ def run_dldownload_crawl(max_urls=100):
     )
 
 
-# FIX: Default fetch_pages=True so page OG images are always retrieved
-def run_thenkiri_crawl(max_urls=200, fetch_pages=True):
-    _run_sitemap_crawl(
-        source_name    = 'thenkiri',
-        state_file     = THENKIRI_STATE,
-        get_entries_fn = get_thenkiri_entries,
-        scrape_page_fn = scrape_thenkiri_page,
-        max_urls       = max_urls,
-        fetch_pages    = fetch_pages,
-        sleep_loop     = SLEEP_THENKIRI_LOOP,
-        sleep_page     = SLEEP_THENKIRI_PAGE,
-    )
-
-
-# FIX: Default fetch_pages=True so page OG images are always retrieved
-def run_loadedfiles_crawl(max_urls=200, fetch_pages=True):
-    _run_sitemap_crawl(
-        source_name    = 'loadedfiles',
-        state_file     = LOADEDFILES_STATE,
-        get_entries_fn = get_loadedfiles_entries,
-        scrape_page_fn = scrape_loadedfiles_page,
-        max_urls       = max_urls,
-        fetch_pages    = fetch_pages,
-        sleep_loop     = SLEEP_LOADEDFILES_LOOP,
-        sleep_page     = SLEEP_LOADEDFILES_PAGE,
-    )
-
 
 def run_crawl(
     max_urls=100,
     include_dldownload=True,
-    include_thenkiri=True,
-    include_loadedfiles=True,
-    thenkiri_max=200,
-    loadedfiles_max=200,
-    fetch_thenkiri_pages=True,
-    fetch_loadedfiles_pages=True,
 ):
     from flask import current_app
     app = current_app._get_current_object()
