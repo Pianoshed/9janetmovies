@@ -24,12 +24,12 @@ def reset_crawl_state():
     if not _auth(request):
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE
+    from app.crawler.dldownload import DLDOWNLOAD_STATE, THENKIRI_STATE
     from app.crawler.thenkiri import run_thenkiri_crawl 
     from app.crawler.thenkiri import crawl_single_movie_thenkiri 
     from app.crawler.jarock import JAROCK_STATE
 
-    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, LOADEDFILES_STATE, JAROCK_STATE]:
+    for state_file in [DLDOWNLOAD_STATE, THENKIRI_STATE, JAROCK_STATE]:
         try:
             open(state_file, 'w').close()
         except Exception:
@@ -49,11 +49,8 @@ def trigger_crawl():
         max_urls=550,
         include_dldownload=True,
         include_thenkiri=True,
-        include_loadedfiles=True,
         thenkiri_max=550,
-        loadedfiles_max=550,
         fetch_thenkiri_pages=False,
-        fetch_loadedfiles_pages=False,
     )
     return jsonify({'status': 'Crawler started in background'}), 200
 
@@ -74,21 +71,10 @@ def trigger_thenkiri_crawl():
     if not _auth(request):
         return jsonify({'error': 'Unauthorized'}), 401
 
-    from app.crawler.dldownload import run_thenkiri_crawl
+    from app.crawler.thenkiri import run_thenkiri_crawl
 
     _thread(current_app._get_current_object(), run_thenkiri_crawl, max_urls=600, fetch_pages=False)
     return jsonify({'status': 'TheNkiri crawl started'}), 200
-
-
-@crawler_bp.route('/api/crawl/loadedfiles', methods=['POST'])
-def trigger_loadedfiles_crawl():
-    if not _auth(request):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    from app.crawler.dldownload import run_loadedfiles_crawl
-
-    _thread(current_app._get_current_object(), run_loadedfiles_crawl, max_urls=550, fetch_pages=False)
-    return jsonify({'status': 'LoadedFiles crawl started'}), 200
 
 
 @crawler_bp.route('/api/crawl/youtube', methods=['POST'])

@@ -162,7 +162,6 @@ URL_GENRE_MAP = {
 SITE_CDN_DOMAINS = [
     'thenkiri.com',
     'nkiri.com',
-    'loadedfiles.org',
 ]
 
 def _is_tmdb_poster(url):
@@ -368,7 +367,6 @@ def _mark_url_processed(state_file, url):
 
 DLDOWNLOAD_STATE   = os.getenv('DLDOWNLOAD_STATE_FILE',   _default_state_file('dldownload_processed.txt'))
 THENKIRI_STATE     = os.getenv('THENKIRI_STATE_FILE',     _default_state_file('thenkiri_processed.txt'))
-LOADEDFILES_STATE  = os.getenv('LOADEDFILES_STATE_FILE',  _default_state_file('loadedfiles_processed.txt'))
 
 _tmdb_lock      = threading.Lock()
 _tmdb_last_call = 0.0
@@ -667,11 +665,6 @@ def get_thenkiri_entries(max_urls=500, sitemaps=None):
     return _get_entries_from_sitemaps(sitemaps, max_urls, 'thenkiri')
 
 
-def get_loadedfiles_entries(max_urls=500, sitemaps=None):
-    if sitemaps is None:
-        sitemaps = list(reversed(LOADEDFILES_SITEMAPS))
-    return _get_entries_from_sitemaps(sitemaps, max_urls, 'loadedfiles')
-
 
 def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
     if fetch_fn is None:
@@ -807,7 +800,6 @@ def save_series(data, tmdb, source='dldownload'):
 
     HOST_LABELS = {
         'thenkiri':    'TheNkiri',
-        'loadedfiles': 'LoadedFiles',
     }
 
     if data.get('links'):
@@ -899,7 +891,6 @@ def save_movie(data, tmdb, source='dldownload'):
 
     HOST_LABELS = {
         'thenkiri':    'TheNkiri',
-        'loadedfiles': 'LoadedFiles',
     }
 
     try:
@@ -1242,12 +1233,15 @@ def run_dldownload_crawl(max_urls=100):
     )
 
 
-
 def run_crawl(
     max_urls=100,
     include_dldownload=True,
+    include_thenkiri=True,
+    thenkiri_max=100,
+    fetch_thenkiri_pages=True,
 ):
     from flask import current_app
+    from app.crawler.thenkiri import run_thenkiri_crawl
     app = current_app._get_current_object()
 
     log.info('═══ Starting 9janetmovies crawl ═══')
@@ -1260,18 +1254,12 @@ def run_crawl(
         with app.app_context():
             run_thenkiri_crawl(thenkiri_max, fetch_thenkiri_pages)
 
-    def _loadedfiles_worker():
-        with app.app_context():
-            run_loadedfiles_crawl(loadedfiles_max, fetch_loadedfiles_pages)
-
     futures = []
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         if include_dldownload:
             futures.append(executor.submit(_dldownload_worker))
         if include_thenkiri:
             futures.append(executor.submit(_thenkiri_worker))
-        if include_loadedfiles:
-            futures.append(executor.submit(_loadedfiles_worker))
         for f in as_completed(futures):
             exc = f.exception()
             if exc:
