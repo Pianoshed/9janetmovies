@@ -449,6 +449,61 @@ def _crawl_movie_post(post_url, page_title, processed):
     _mark_url_processed(JAROCK_STATE, post_url)
     return saved
 
+def _find_movie_post_url(title):
+    """Search 9jarocks (WordPress ?s= search) for a title, return matching post links."""
+    from urllib.parse import quote_plus
+    search_url = f'{JAROCK_BASE}/?s={quote_plus(title)}'
+    r = _get(search_url)
+    if not r:
+        return []
+
+    soup = BeautifulSoup(r.text, 'html.parser')
+    posts, seen = [], set()
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        if '/videodownload/' in href and re.search(r'-id\d+\.html$', href) and href not in seen:
+            seen.add(href)
+            posts.append((href, a.text.strip()))
+    return posts
+
+
+def crawl_single_movie(title=None, post_url=None, force=True):
+    """
+    Backfill one movie: pass a title to search 9jarocks for its post,
+    or a post_url directly if you already have it.
+    force=True bypasses the JAROCK_STATE file so an already-attempted
+    (but empty/failed) post gets re-scraped.
+    """
+    processed = set() if force else _load_processed_urls(JAROCK_STATE)
+
+    if post_url:
+        candidates = [(post_url, title or '')]
+    else:
+        if not title:
+            log.error('crawl_single_movie needs a title or post_url')
+            return 0
+        candidates = _find_movie_post_url(title)
+        if not candidates:
+            log.warning(f'No 9jaRocks post found for {title!r}')
+            return 0
+
+    total = 0
+    for href, listing_title in candidates:
+        r = _get(href)
+        page_title = listing_title
+        if r:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            og = soup.find('meta', property='og:title')
+            if og and og.get('content'):
+                page_title = og['content']
+            elif soup.title:
+                page_title = soup.title.text.strip()
+
+        saved = _crawl_movie_post(href, page_title, processed)
+        total += saved
+        log.info(f'  {href} -> {saved} link(s) saved')
+
+    return total
 
 def _crawl_category(cat_url, processed, is_movie=False):
     """Paginate through a category and crawl each post (series or movie)."""
