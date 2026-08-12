@@ -4,6 +4,7 @@ import Script from 'next/script'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+import AdcashScript from '@/components/AdcashScript'
 
 const lora = Lora({
   subsets: ['latin'],
@@ -24,19 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <head>
-        {/* Adcash */}
-        <Script
-          id="aclib"
-          src="https://acscdn.com/script/aclib.js"
-          strategy="afterInteractive"
-        />
-        <Script id="adcash-autotag" strategy="afterInteractive">
-          {`
-            aclib.runAutoTag({
-              zoneId: 'llpnfj23jm',
-            });
-          `}
-        </Script>
+        <AdcashScript />
       </head>
       <body className={lora.className}>
         {/* Google Analytics */}
