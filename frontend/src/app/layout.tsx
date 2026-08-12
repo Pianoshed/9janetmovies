@@ -23,6 +23,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
+      <head>
+        {/* Adcash */}
+        <Script
+          id="aclib"
+          src="https://acscdn.com/script/aclib.js"
+          strategy="afterInteractive"
+        />
+        <Script id="adcash-autotag" strategy="afterInteractive">
+          {`
+            aclib.runAutoTag({
+              zoneId: 'llpnfj23jm',
+            });
+          `}
+        </Script>
+      </head>
       <body className={lora.className}>
         {/* Google Analytics */}
         <Script
