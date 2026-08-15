@@ -679,7 +679,7 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
     return entries
 
 
-def get_thenkiri_entries(max_urls=500, sitemaps=None):
+def get_thenkiri_entries(max_urls=700, sitemaps=None):
     if sitemaps is None:
         sitemaps = list(reversed(THENKIRI_SITEMAPS))
     return _get_entries_from_sitemaps(sitemaps, max_urls, 'thenkiri')
@@ -1264,10 +1264,10 @@ def run_dldownload_crawl(max_urls=100):
 
 
 def run_crawl(
-    max_urls=100,
+    max_urls=500,
     include_dldownload=True,
     include_thenkiri=True,
-    thenkiri_max=100,
+    thenkiri_max=300,
     fetch_thenkiri_pages=True,
 ):
     from flask import current_app

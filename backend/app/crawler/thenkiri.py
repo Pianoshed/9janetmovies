@@ -279,7 +279,7 @@ def _process_entry(url, sitemap_title=None, sitemap_poster=None, fetch_page=True
 # Full-site crawl
 # ─────────────────────────────────────────────────────────────────────────
 
-def run_thenkiri_crawl(max_urls=200, fetch_pages=True):
+def run_thenkiri_crawl(max_urls=300, fetch_pages=True):
     log.info('═══ thenkiri crawl ═══')
     total_movies, total_series, total_skipped, total_adult_blocked = 0, 0, 0, 0
 

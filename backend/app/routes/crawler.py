@@ -46,10 +46,10 @@ def trigger_crawl():
     from app.crawler.dldownload import run_crawl
 
     _thread(current_app._get_current_object(), run_crawl,
-        max_urls=550,
+        max_urls=750,
         include_dldownload=True,
         include_thenkiri=True,
-        thenkiri_max=550,
+        thenkiri_max=750,
         fetch_thenkiri_pages=False,
     )
     return jsonify({'status': 'Crawler started in background'}), 200
@@ -62,7 +62,7 @@ def trigger_dldownload_crawl():
 
     from app.crawler.dldownload import run_dldownload_crawl
 
-    _thread(current_app._get_current_object(), run_dldownload_crawl, max_urls=550)
+    _thread(current_app._get_current_object(), run_dldownload_crawl, max_urls=750)
     return jsonify({'status': 'DLDownload crawl started'}), 200
 
 
@@ -94,7 +94,7 @@ def trigger_thenkiri_crawl():
 
     from app.crawler.thenkiri import run_thenkiri_crawl
 
-    _thread(current_app._get_current_object(), run_thenkiri_crawl, max_urls=600, fetch_pages=False)
+    _thread(current_app._get_current_object(), run_thenkiri_crawl, max_urls=750, fetch_pages=False)
     return jsonify({'status': 'TheNkiri crawl started'}), 200
 
 @crawler_bp.route('/api/crawl/thenkiri/movie', methods=['POST'])
