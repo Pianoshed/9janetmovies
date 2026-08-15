@@ -29,6 +29,26 @@ CURRENT_YEAR = datetime.now().year
 
 DLDOWNLOAD_BASE  = 'https://dldownload.com.ng'
 
+# FIX: THENKIRI_BASE / THENKIRI_SITEMAPS were referenced (in get_thenkiri_entries())
+# but never defined anywhere in this file, which raised
+#   NameError: name 'THENKIRI_SITEMAPS' is not defined
+# the moment get_thenkiri_entries() was called with sitemaps=None (its default).
+# Both are now defined here, mirroring the DLDOWNLOAD_BASE / sitemap pattern used
+# above, and are overridable via env vars so you can point them at the exact
+# sitemap URLs/pages your thenkiri/nkiri crawler actually uses without editing code.
+THENKIRI_BASE = os.getenv('THENKIRI_BASE', 'https://thenkiri.com')
+THENKIRI_SITEMAPS = [
+    u.strip() for u in os.getenv(
+        'THENKIRI_SITEMAPS',
+        f'{THENKIRI_BASE}/wp-sitemap-posts-post-1.xml,'
+        f'{THENKIRI_BASE}/wp-sitemap-posts-post-2.xml'
+    ).split(',') if u.strip()
+]
+# NOTE: please double-check these default sitemap URLs against what thenkiri.com/
+# nkiri.com actually serves (page count, post-type slug, etc.) — I can't verify
+# live site structure from here, so this default is a best-effort placeholder to
+# stop the NameError; set THENKIRI_SITEMAPS in your .env (comma-separated) to the
+# real URLs if these don't match.
 
 TMDB_KEY  = os.getenv('TMDB_API_KEY')
 TMDB_BASE = 'https://api.themoviedb.org/3'
@@ -155,7 +175,7 @@ URL_GENRE_MAP = {
     'web-series':     'Drama',
 }
 
-# FIX: These domains serve valid thumbnails from their own CDN.
+# These domains serve valid thumbnails from their own CDN.
 # We no longer block them outright — they're used as fallback when TMDB has no poster.
 # Only TMDB posters (image.tmdb.org) are treated as "preferred"; site CDN images are
 # acceptable fallbacks.
@@ -630,7 +650,7 @@ def _get_entries_from_sitemaps(sitemaps, max_urls, source_name, fetch_fn=None):
                 if is_adult_content('', page_url):
                     continue
 
-                # FIX: Accept ALL valid image URLs from the sitemap — including site CDN.
+                # Accept ALL valid image URLs from the sitemap — including site CDN.
                 # TMDB will override this later if it finds a better poster.
                 poster = _extract_poster_from_url_tag(url_tag, page_url)
                 if poster and not _is_valid_poster(poster):
@@ -699,7 +719,7 @@ def _scrape_generic_wp_page(url, source_name, fetch_fn=None):
         if meta_desc:
             description = meta_desc.get('content', '')[:500]
 
-        # FIX: Collect poster from OG/Twitter tags — accept any valid image URL
+        # Collect poster from OG/Twitter tags — accept any valid image URL
         # including from the site's own CDN. TMDB will override later.
         poster = None
         for attr in [{'property': 'og:image'}, {'name': 'twitter:image'}]:
@@ -735,7 +755,7 @@ def save_series(data, tmdb, source='dldownload'):
 
     season, ep, is_full_season = extract_season_episode(raw_title)
 
-    # FIX: Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
+    # Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
     poster = _best_poster(
         tmdb.get('poster') if tmdb else None,
         data.get('poster'),
@@ -782,9 +802,19 @@ def save_series(data, tmdb, source='dldownload'):
         ).returning(Series.id, Series.title)
 
         result = db.session.execute(stmt)
-        db.session.commit()
+        # FIX: previously this called db.session.commit() BEFORE result.fetchone().
+        # Once you commit, SQLAlchemy/psycopg2 can close out the cursor tied to
+        # that executed statement, so calling fetchone() afterwards risked
+        # `ResourceClosedError: This result object does not return rows / is
+        # closed` intermittently (depends on pooling/isolation settings) and
+        # would abort the whole entry with an unhandled exception, dropping it
+        # into the `except` block below and skipping episode creation.
+        # save_movie() already does this in the correct order (flush → fetchone
+        # → commit); mirrored that fix here.
+        db.session.flush()
         row = result.fetchone()
         series_id = row[0]
+        db.session.commit()
 
         series = db.session.get(Series, series_id)
         if not series:
@@ -867,7 +897,7 @@ def save_movie(data, tmdb, source='dldownload'):
     if is_adult_content(title, data.get('url', '')):
         return
 
-    # FIX: Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
+    # Use _best_poster to correctly prefer TMDB > page poster > sitemap poster
     poster = _best_poster(
         tmdb.get('poster') if tmdb else None,
         data.get('poster'),
@@ -1060,7 +1090,7 @@ def _run_sitemap_crawl(
     total_series  = 0
     total_skipped = 0
     total_adult_blocked = 0
-    total_page_fetch_failed = 0   # NEW: pages Cloudflare/anti-bot blocked (non-fatal)
+    total_page_fetch_failed = 0   # pages Cloudflare/anti-bot blocked (non-fatal)
 
     processed = _load_processed_urls(state_file)
     log.info(f'Already processed: {len(processed)} URLs')
