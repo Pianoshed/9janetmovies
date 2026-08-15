@@ -66,6 +66,27 @@ def trigger_dldownload_crawl():
     return jsonify({'status': 'DLDownload crawl started'}), 200
 
 
+@crawler_bp.route('/api/crawl/dldownload/movie', methods=['POST'])
+def trigger_dldownload_single_movie():
+    if not _auth(request):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data     = request.get_json(silent=True) or {}
+    title    = request.args.get('title') or data.get('title')
+    post_url = request.args.get('url') or data.get('url')
+    force    = request.args.get('force', data.get('force', 'true'))
+    force    = str(force).lower() != 'false'
+
+    if not title and not post_url:
+        return jsonify({'error': 'Provide a title or url'}), 400
+
+    from app.crawler.dldownload import crawl_single_movie_dldownload
+
+    _thread(current_app._get_current_object(), crawl_single_movie_dldownload,
+        title=title, post_url=post_url, force=force)
+    return jsonify({'status': f'DLDownload single-movie crawl started for {title or post_url}'}), 200
+
+
 @crawler_bp.route('/api/crawl/thenkiri', methods=['POST'])
 def trigger_thenkiri_crawl():
     if not _auth(request):
@@ -158,3 +179,25 @@ def trigger_backfill():
 
     _thread(current_app._get_current_object(), backfill_descriptions, batch_size=500)
     return jsonify({'status': 'Backfill started — filling empty descriptions from TMDB'}), 200
+
+
+@crawler_bp.route('/api/crawl/backfill/movie', methods=['POST'])
+def trigger_backfill_single_movie():
+    if not _auth(request):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data     = request.get_json(silent=True) or {}
+    title    = request.args.get('title') or data.get('title')
+    slug     = request.args.get('slug') or data.get('slug')
+    movie_id = request.args.get('movie_id') or data.get('movie_id')
+    force    = request.args.get('force', data.get('force', 'false'))
+    force    = str(force).lower() == 'true'
+
+    if not title and not slug and not movie_id:
+        return jsonify({'error': 'Provide a title, slug, or movie_id'}), 400
+
+    from app.crawler.dldownload import backfill_single_movie
+
+    _thread(current_app._get_current_object(), backfill_single_movie,
+        title=title, slug=slug, movie_id=movie_id, force=force)
+    return jsonify({'status': f'Backfill started for {title or slug or movie_id}'}), 200
