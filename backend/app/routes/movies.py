@@ -2,7 +2,7 @@ import os
 from flask import Blueprint, jsonify, request
 from app.models.movie import Movie
 from app.models.download_link import DownloadLink
-from sqlalchemy import exists, and_
+from sqlalchemy import exists, and_, func
 from app import db
 
 movies_bp = Blueprint('movies', __name__, url_prefix='/api')
@@ -32,6 +32,22 @@ def delete_movie(slug):
     db.session.commit()
 
     return jsonify({'status': f'Deleted: {movie.title}'}), 200
+
+
+@movies_bp.route('/movies/random')
+def get_random_movie():
+    """One random movie, for the Telegram bot's periodic spotlight posts.
+    Same non-YouTube-link rule as the main listing, so a random pick never
+    surfaces a movie with nothing watchable behind it."""
+    movie = (
+        Movie.query
+        .filter(has_non_youtube_link())
+        .order_by(func.random())
+        .first()
+    )
+    if not movie:
+        return jsonify({'error': 'No movies available'}), 404
+    return jsonify(movie.to_dict())
 
 
 @movies_bp.route('/movies')
