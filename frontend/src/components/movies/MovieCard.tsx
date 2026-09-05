@@ -37,7 +37,7 @@ export default function MovieCard({ movie }: Props) {
             }}
             className="movie-card"
         >
-            <Link href={`/movie/${movie.slug}`} style={{ display: 'block' }}>
+            <Link href={movie.type === 'series' ? `/series/${movie.slug}` : `/movie/${movie.slug}`} style={{ display: 'block' }}>
 
                 {/* POSTER */}
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>

@@ -18,6 +18,7 @@ export interface Movie {
     links: DownloadLink[]
     rating?: number
     rating_count?: number
+    type?: 'movie' | 'series'
 }
 
 export interface Series {
