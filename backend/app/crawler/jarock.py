@@ -47,20 +47,24 @@ log.info(f"SCRAPERAPI_API_KEY loaded: {'YES' if SCRAPERAPI_API_KEY else 'NO'}")
 # Series categories only — skip movies
 SERIES_CATEGORIES = [
     'https://9jarocks.net/category/videodownload/hollywood-tv-series',
-    'https://9jarocks.net/category/videodownload/nollywood-tv-series',
-    'https://9jarocks.net/category/videodownload/other-foreign-series',
-    'https://9jarocks.net/category/videodownload/korean-drama',
-    'https://9jarocks.net/category/videodownload/thai-drama',
-    'https://9jarocks.net/category/videodownload/chinese-drama',
-    'https://9jarocks.net/category/videodownload/anime',
+    'https://my9jarocks.bz/category/videodownload/hollywood-tv-series',
+    'https://my9jarocks.bz/category/videodownload/hollywood-tv-series',
+    'https://my9jarocks.bz/category/videodownload/hollywood-tv-series',
+    'https://my9jarocks.bz/category/videodownload/hollywood-tv-series',
+    'https://my9jarocks.bz/category/videodownload/nollywood-tv-series',
+    'https://my9jarocks.bz/category/videodownload/other-foreign-series',
+    'https://my9jarocks.bz/category/videodownload/korean-drama',
+    'https://my9jarocks.bz/category/videodownload/thai-drama',
+    'https://my9jarocks.bz/category/videodownload/chinese-drama',
+    'https://my9jarocks.bz/category/videodownload/anime',
     'https://9jarocks.net/category/videodownload/ongoing',
 ]
 
 # Movie categories
 MOVIE_CATEGORIES = [
-    'https://9jarocks.net/category/videodownload/hollywood-movie',
-    'https://9jarocks.net/category/videodownload/foreign-movies',
-    'https://9jarocks.net/category/videodownload/nollywood-movie',
+    'https://my9jarocks.bz/category/videodownload/hollywood-movie',
+    'https://my9jarocks.bz/category/videodownload/foreign-movies',
+    'https://my9jarocks.bz/category/videodownload/nollywood-movie',
 ]
 
 HEADERS = {
